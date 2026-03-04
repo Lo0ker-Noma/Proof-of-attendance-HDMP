@@ -150,6 +150,8 @@ Proyecto construido para la **Lightning Hackathon FOUNDATIONS** de La Crypta.
 
 Construido con ⚡ y mucho café durante la Lightning Hackathon 2026.
 
+[@Lo0ker-Noma](https://github.com/Lo0ker-Noma)
+
 ---
 
 *Hecho con el [Lightning Starter Kit](https://github.com/lacrypta/lightning-starter) de La Crypta*
