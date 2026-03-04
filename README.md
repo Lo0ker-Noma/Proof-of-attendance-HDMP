@@ -26,8 +26,8 @@ El compromiso económico es pequeño pero real. **La fricción justa.**
 ## 🚀 Demo
 
 ```bash
-git clone https://github.com/TU_USUARIO/proof-of-attendance.git
-cd proof-of-attendance
+git clone https://github.com/Lo0ker-Noma/Proof-of-attendance-HDMP.git
+cd Proof-of-attendance-HDMP
 npm install
 npm run dev
 ```
