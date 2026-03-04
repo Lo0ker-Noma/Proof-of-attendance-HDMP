@@ -3,302 +3,900 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>⚡ Lightning Starter Kit</title>
+  <title>⚡ Proof of Attendance — HDMP</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
+
     body {
       font-family: system-ui, -apple-system, sans-serif;
       background: linear-gradient(180deg, #0a0f1a 0%, #1a1a2e 100%);
       min-height: 100vh;
       color: #fff;
-      padding: 40px 20px;
     }
-    .container { max-width: 800px; margin: 0 auto; }
-    h1 { 
-      font-size: 2.5rem; 
-      margin-bottom: 10px;
+
+    /* ── HEADER ── */
+    header {
       display: flex;
       align-items: center;
-      gap: 15px;
+      justify-content: space-between;
+      padding: 16px 24px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      background: rgba(0,0,0,0.3);
+      backdrop-filter: blur(10px);
+      position: sticky;
+      top: 0;
+      z-index: 10;
     }
-    h1 span { color: #ffc800; }
-    .subtitle { color: rgba(255,255,255,0.6); margin-bottom: 40px; }
-    
+    .logo { font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+    .logo span { color: #ffc800; }
+    .organizer-link {
+      font-size: 0.8rem;
+      color: rgba(255,255,255,0.4);
+      text-decoration: none;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+    .organizer-link:hover { color: #ffc800; }
+
+    /* ── VISTAS ── */
+    .view { display: none; padding: 24px 20px; max-width: 480px; margin: 0 auto; }
+    .view.active { display: block; }
+
+    /* ── CARDS ── */
     .card {
       background: rgba(255,255,255,0.05);
       border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 16px;
-      padding: 30px;
-      margin-bottom: 20px;
+      border-radius: 20px;
+      padding: 28px 24px;
+      margin-bottom: 16px;
     }
-    .card h2 {
-      font-size: 1.3rem;
-      margin-bottom: 15px;
+
+    /* ── BADGE ── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+    .badge.live { background: rgba(0,255,157,0.15); color: #00ff9d; }
+    .badge.warning { background: rgba(255,200,0,0.15); color: #ffc800; }
+    .badge.error { background: rgba(255,107,107,0.15); color: #ff6b6b; }
+
+    /* ── EVENTO ── */
+    .event-emoji { font-size: 4rem; text-align: center; margin-bottom: 16px; }
+    .event-title { font-size: 1.6rem; font-weight: 800; margin-bottom: 6px; line-height: 1.2; }
+    .event-subtitle { color: #ffc800; font-size: 0.9rem; font-weight: 600; margin-bottom: 20px; }
+    .event-info { list-style: none; margin-bottom: 24px; }
+    .event-info li {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      color: rgba(255,255,255,0.8);
+      font-size: 0.95rem;
     }
-    .card p { color: rgba(255,255,255,0.7); margin-bottom: 20px; line-height: 1.6; }
-    
-    input, textarea {
+    .event-info li:last-child { border-bottom: none; }
+    .event-info .icon { font-size: 1.2rem; width: 28px; text-align: center; }
+
+    .price-box {
+      background: linear-gradient(135deg, rgba(255,200,0,0.15), rgba(255,200,0,0.05));
+      border: 1px solid rgba(255,200,0,0.3);
+      border-radius: 12px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .price-label { font-size: 0.85rem; color: rgba(255,255,255,0.6); }
+    .price-amount { font-size: 1.5rem; font-weight: 800; color: #ffc800; }
+    .price-sub { font-size: 0.75rem; color: rgba(255,255,255,0.4); margin-top: 2px; }
+
+    .spots-bar { margin-bottom: 24px; }
+    .spots-text { font-size: 0.85rem; color: rgba(255,255,255,0.6); margin-bottom: 8px; display: flex; justify-content: space-between; }
+    .spots-track { background: rgba(255,255,255,0.1); border-radius: 4px; height: 6px; }
+    .spots-fill { background: linear-gradient(90deg, #00ff9d, #00cc7d); border-radius: 4px; height: 6px; transition: width 0.5s; }
+
+    .description {
+      font-size: 0.9rem;
+      color: rgba(255,255,255,0.6);
+      line-height: 1.7;
+      margin-bottom: 24px;
+    }
+
+    /* ── BOTONES ── */
+    .btn {
       width: 100%;
-      padding: 12px 16px;
-      border: 1px solid rgba(255,255,255,0.2);
-      border-radius: 8px;
+      padding: 16px;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #ffc800, #ff9500);
+      color: #000;
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(255,200,0,0.3); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    .btn-secondary {
+      background: rgba(255,255,255,0.08);
+      color: rgba(255,255,255,0.7);
+      margin-top: 10px;
+    }
+    .btn-secondary:hover { background: rgba(255,255,255,0.12); color: #fff; }
+
+    .btn-success {
+      background: linear-gradient(135deg, #00ff9d, #00cc7d);
+      color: #000;
+      margin-top: 16px;
+    }
+    .btn-success:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,255,157,0.3); }
+
+    .btn-redeem {
+      background: linear-gradient(135deg, #7c3aed, #5b21b6);
+      color: #fff;
+    }
+    .btn-redeem:hover { transform: translateY(-2px); }
+
+    /* ── INPUTS ── */
+    .input-group { margin-bottom: 16px; }
+    .input-label { font-size: 0.85rem; color: rgba(255,255,255,0.6); margin-bottom: 8px; display: block; }
+    input[type="text"], input[type="number"] {
+      width: 100%;
+      padding: 14px 16px;
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 10px;
       background: rgba(255,255,255,0.05);
       color: #fff;
       font-size: 1rem;
-      margin-bottom: 15px;
     }
-    input:focus, textarea:focus {
-      outline: none;
-      border-color: #00ff9d;
-    }
-    input::placeholder { color: rgba(255,255,255,0.4); }
-    
-    button {
-      padding: 12px 24px;
-      background: linear-gradient(135deg, #00ff9d 0%, #00cc7d 100%);
-      color: #000;
-      font-weight: 600;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 1rem;
-      transition: transform 0.2s;
-    }
-    button:hover { transform: scale(1.02); }
-    button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-      transform: none;
-    }
-    
-    .output {
-      background: rgba(0,0,0,0.3);
-      border-radius: 8px;
-      padding: 15px;
-      margin-top: 15px;
-      font-family: monospace;
-      font-size: 0.9rem;
-      word-break: break-all;
-      display: none;
-    }
-    .output.show { display: block; }
-    .output.success { border-left: 3px solid #00ff9d; }
-    .output.error { border-left: 3px solid #ff6b6b; }
-    
-    .status {
-      padding: 8px 16px;
-      border-radius: 20px;
-      font-size: 0.85rem;
-      display: inline-flex;
+    input:focus { outline: none; border-color: #ffc800; }
+    input::placeholder { color: rgba(255,255,255,0.3); }
+
+    /* ── PAYMENT ── */
+    .step-indicator {
+      display: flex;
       align-items: center;
       gap: 8px;
-      margin-bottom: 15px;
+      margin-bottom: 24px;
     }
-    .status.connected { background: rgba(0,255,157,0.15); color: #00ff9d; }
-    .status.disconnected { background: rgba(255,107,107,0.15); color: #ff6b6b; }
-    
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-    @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
-    
-    .footer {
-      margin-top: 60px;
+    .step { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; }
+    .step.active { background: #ffc800; color: #000; }
+    .step.done { background: #00ff9d; color: #000; }
+    .step.pending { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.4); }
+    .step-line { flex: 1; height: 2px; background: rgba(255,255,255,0.1); }
+    .step-line.done { background: #00ff9d; }
+
+    .section-title { font-size: 1.2rem; font-weight: 700; margin-bottom: 6px; }
+    .section-sub { font-size: 0.9rem; color: rgba(255,255,255,0.5); margin-bottom: 24px; }
+
+    /* ── QR BOX ── */
+    .qr-box {
+      background: #fff;
+      border-radius: 16px;
+      padding: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 20px 0;
+    }
+    .qr-box canvas { display: block; }
+
+    .invoice-copy {
+      background: rgba(0,0,0,0.3);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      padding: 12px 16px;
+      font-family: monospace;
+      font-size: 0.75rem;
+      word-break: break-all;
+      color: rgba(255,255,255,0.6);
+      cursor: pointer;
+      transition: border-color 0.2s;
+      position: relative;
+    }
+    .invoice-copy:hover { border-color: #ffc800; color: #fff; }
+    .copy-hint { font-size: 0.75rem; color: rgba(255,255,255,0.4); text-align: center; margin-top: 8px; }
+
+    .payment-info {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      margin: 12px 0;
+    }
+    .payment-amount-big { font-size: 1.4rem; font-weight: 800; color: #ffc800; }
+    .payment-address { font-size: 0.8rem; color: rgba(255,255,255,0.4); }
+
+    .waiting-indicator {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: rgba(255,255,255,0.5);
+      font-size: 0.85rem;
+      margin: 12px 0;
+    }
+    .dot-pulse { width: 8px; height: 8px; border-radius: 50%; background: #ffc800; animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    /* ── TICKET ── */
+    .ticket-card {
+      background: linear-gradient(135deg, rgba(255,200,0,0.1), rgba(255,150,0,0.05));
+      border: 1px solid rgba(255,200,0,0.3);
+      border-radius: 20px;
+      padding: 28px 24px;
       text-align: center;
-      color: rgba(255,255,255,0.4);
-      font-size: 0.9rem;
     }
-    .footer a { color: #ffc800; text-decoration: none; }
+    .ticket-header { font-size: 0.8rem; color: #ffc800; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px; }
+    .ticket-event { font-size: 1.2rem; font-weight: 800; margin-bottom: 4px; }
+    .ticket-name { font-size: 1rem; color: rgba(255,255,255,0.7); margin-bottom: 20px; }
+    .ticket-divider {
+      border: none;
+      border-top: 2px dashed rgba(255,200,0,0.3);
+      margin: 20px 0;
+    }
+    .ticket-code-label { font-size: 0.75rem; color: rgba(255,255,255,0.4); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
+    .ticket-code { font-size: 1.6rem; font-weight: 800; font-family: monospace; color: #ffc800; letter-spacing: 4px; margin-bottom: 20px; }
+    .ticket-detail { font-size: 0.85rem; color: rgba(255,255,255,0.6); line-height: 1.8; }
+
+    .success-banner {
+      background: rgba(0,255,157,0.1);
+      border: 1px solid rgba(0,255,157,0.3);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .success-banner .icon { font-size: 1.5rem; }
+    .success-banner .text { font-size: 0.9rem; color: #00ff9d; font-weight: 600; }
+    .success-banner .subtext { font-size: 0.8rem; color: rgba(255,255,255,0.5); margin-top: 2px; }
+
+    /* ── ORGANIZER ── */
+    .org-header { display: flex; align-items: center; gap: 10px; margin-bottom: 24px; }
+    .org-title { font-size: 1.4rem; font-weight: 800; }
+    .org-badge { background: rgba(124,58,237,0.3); color: #a78bfa; padding: 4px 10px; border-radius: 10px; font-size: 0.75rem; font-weight: 600; }
+
+    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px; }
+    .stat-card { background: rgba(255,255,255,0.05); border-radius: 12px; padding: 16px 12px; text-align: center; }
+    .stat-num { font-size: 1.8rem; font-weight: 800; }
+    .stat-label { font-size: 0.75rem; color: rgba(255,255,255,0.4); margin-top: 4px; }
+    .stat-total .stat-num { color: #ffc800; }
+    .stat-redeemed .stat-num { color: #00ff9d; }
+    .stat-noshow .stat-num { color: #ff6b6b; }
+
+    .redeem-section { margin-bottom: 24px; }
+    .redeem-input-row { display: flex; gap: 10px; }
+    .redeem-input-row input { flex: 1; }
+    .redeem-input-row .btn { width: auto; padding: 14px 20px; white-space: nowrap; }
+
+    .reservations-list { display: flex; flex-direction: column; gap: 10px; }
+    .reservation-item {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .reservation-item.redeemed { border-color: rgba(0,255,157,0.2); background: rgba(0,255,157,0.05); }
+    .reservation-info .res-name { font-size: 0.95rem; font-weight: 600; }
+    .reservation-info .res-code { font-size: 0.8rem; font-family: monospace; color: rgba(255,255,255,0.4); margin-top: 3px; }
+    .reservation-info .res-time { font-size: 0.75rem; color: rgba(255,255,255,0.3); margin-top: 3px; }
+    .res-status { font-size: 0.8rem; font-weight: 600; padding: 5px 12px; border-radius: 20px; white-space: nowrap; }
+    .res-status.confirmed { background: rgba(255,200,0,0.15); color: #ffc800; }
+    .res-status.redeemed { background: rgba(0,255,157,0.15); color: #00ff9d; }
+
+    .empty-state { text-align: center; padding: 40px 20px; color: rgba(255,255,255,0.3); font-size: 0.9rem; }
+    .empty-state .empty-icon { font-size: 3rem; margin-bottom: 12px; }
+
+    .redeem-feedback {
+      padding: 14px 16px;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+      display: none;
+    }
+    .redeem-feedback.success { background: rgba(0,255,157,0.15); color: #00ff9d; border: 1px solid rgba(0,255,157,0.3); }
+    .redeem-feedback.error { background: rgba(255,107,107,0.15); color: #ff6b6b; border: 1px solid rgba(255,107,107,0.3); }
+    .redeem-feedback.show { display: block; }
+
+    /* ── FOOTER ── */
+    .footer { text-align: center; padding: 24px; color: rgba(255,255,255,0.25); font-size: 0.8rem; }
+    .footer a { color: rgba(255,200,0,0.5); text-decoration: none; }
+
+    @media (max-width: 480px) {
+      .view { padding: 20px 16px; }
+      .event-title { font-size: 1.4rem; }
+    }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>⚡ <span>Lightning</span> Starter Kit</h1>
-    <p class="subtitle">Demo interactivo para Lightning Hackathons 2026</p>
 
-    <!-- WebLN Connection -->
+  <!-- HEADER -->
+  <header>
+    <div class="logo">⚡ <span>HDMP</span> · Proof of Attendance</div>
+    <a class="organizer-link" onclick="showView('organizer')">🔧 Organizer</a>
+  </header>
+
+  <!-- ════════════════════════════════════════
+       VISTA 1: EVENTO
+  ════════════════════════════════════════ -->
+  <div id="view-event" class="view active">
+    <div class="badge live">🟢 Plazas disponibles</div>
+
     <div class="card">
-      <h2>🔌 Conectar Wallet (WebLN)</h2>
-      <p>Conectá tu wallet del navegador (Alby, etc.) para interactuar con Lightning.</p>
-      
-      <div id="walletStatus" class="status disconnected">
-        ⚪ No conectado
-      </div>
-      
-      <button id="connectBtn" onclick="connectWallet()">Conectar Wallet</button>
-      <div id="walletOutput" class="output"></div>
-    </div>
+      <div class="event-emoji">⚡</div>
+      <div class="event-title">Lightning Hackathon FOUNDATIONS</div>
+      <div class="event-subtitle">La Crypta × Lightning Network 2026</div>
 
-    <div class="grid">
-      <!-- Lightning Address -->
-      <div class="card">
-        <h2>📬 Lightning Address</h2>
-        <p>Resolvé una Lightning Address y generá un invoice.</p>
-        
-        <input type="text" id="lnAddress" placeholder="usuario@dominio.com" value="hello@getalby.com">
-        <input type="number" id="lnAmount" placeholder="Cantidad en sats" value="21">
-        <button onclick="resolveLightningAddress()">Generar Invoice</button>
-        <div id="lnAddressOutput" class="output"></div>
+      <ul class="event-info">
+        <li><span class="icon">📅</span> Martes 10 de Marzo, 2026</li>
+        <li><span class="icon">🕖</span> 19:00hs (Argentina)</li>
+        <li><span class="icon">📍</span> La Crypta, Buenos Aires</li>
+        <li><span class="icon">👥</span> Máximo 30 personas</li>
+      </ul>
+
+      <div class="price-box">
+        <div>
+          <div class="price-label">Depósito de reserva</div>
+          <div class="price-sub">Canjeable por una consumición al llegar</div>
+        </div>
+        <div style="text-align:right">
+          <div class="price-amount" id="priceDisplay">1,000 sats</div>
+          <div class="price-sub">~$0.60 USD</div>
+        </div>
       </div>
 
-      <!-- Create Invoice -->
-      <div class="card">
-        <h2>📝 Crear Invoice</h2>
-        <p>Generá un invoice para recibir pagos.</p>
-        
-        <input type="number" id="invoiceAmount" placeholder="Cantidad en sats" value="100">
-        <input type="text" id="invoiceMemo" placeholder="Descripción" value="Test desde Lightning Starter">
-        <button id="createInvoiceBtn" onclick="createInvoice()" disabled>Crear Invoice</button>
-        <div id="invoiceOutput" class="output"></div>
+      <div class="spots-bar">
+        <div class="spots-text">
+          <span id="spotsText">Calculando lugares...</span>
+          <span id="spotsCount"></span>
+        </div>
+        <div class="spots-track">
+          <div class="spots-fill" id="spotsBar" style="width: 0%"></div>
+        </div>
       </div>
-    </div>
 
-    <!-- Pay Invoice -->
-    <div class="card">
-      <h2>💸 Pagar Invoice</h2>
-      <p>Pagá un invoice bolt11.</p>
-      
-      <textarea id="payInvoice" rows="3" placeholder="lnbc..."></textarea>
-      <button id="payBtn" onclick="payInvoice()" disabled>Pagar</button>
-      <div id="payOutput" class="output"></div>
+      <p class="description">
+        Reservá tu lugar pagando <strong>1,000 sats</strong> con Lightning Network.
+        Al llegar al evento, mostrás tu QR y canjeás tu consumición.
+        <strong>¿No podés venir? La reserva no se reembolsa.</strong>
+      </p>
+
+      <button class="btn btn-primary" onclick="showView('reserve')">
+        ⚡ Reservar mi lugar
+      </button>
     </div>
 
     <div class="footer">
-      <p>
-        <a href="https://hackaton.lacrypta.ar" target="_blank">Lightning Hackathons 2026</a> · 
-        <a href="https://lacrypta.ar" target="_blank">La Crypta</a> · 
-        <a href="https://github.com/lacrypta/lightning-starter" target="_blank">GitHub</a>
-      </p>
+      <a href="https://hackaton.lacrypta.ar" target="_blank">hackaton.lacrypta.ar</a>
+      · Lightning Hackathons 2026
     </div>
   </div>
 
+  <!-- ════════════════════════════════════════
+       VISTA 2: RESERVA + PAGO
+  ════════════════════════════════════════ -->
+  <div id="view-reserve" class="view">
+
+    <!-- Step indicators -->
+    <div class="step-indicator">
+      <div class="step" id="step-ind-1">1</div>
+      <div class="step-line" id="step-line-1"></div>
+      <div class="step" id="step-ind-2">2</div>
+      <div class="step-line" id="step-line-2"></div>
+      <div class="step" id="step-ind-3">3</div>
+    </div>
+
+    <!-- PASO 1: Formulario -->
+    <div id="step-form">
+      <div class="section-title">¿Cómo te llamás?</div>
+      <div class="section-sub">Opcional — aparecerá en tu ticket</div>
+
+      <div class="card">
+        <div class="input-group">
+          <label class="input-label">Tu nombre (opcional)</label>
+          <input type="text" id="attendeeName" placeholder="Ej: Satoshi" maxlength="40">
+        </div>
+
+        <div class="price-box" style="margin-bottom: 0">
+          <div>
+            <div class="price-label">Vas a pagar</div>
+            <div class="price-sub">a tamedpeen07@walletofsatoshi.com</div>
+          </div>
+          <div style="text-align:right">
+            <div class="price-amount">1,000 sats</div>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" id="generateBtn" onclick="generateInvoice()">
+        ⚡ Generar QR de pago
+      </button>
+      <button class="btn btn-secondary" onclick="showView('event')">← Volver</button>
+    </div>
+
+    <!-- PASO 2: QR de pago -->
+    <div id="step-payment" style="display:none">
+      <div class="section-title">Escaneá y pagá</div>
+      <div class="section-sub">Abrí tu wallet Lightning y escaneá el QR</div>
+
+      <div class="card">
+        <div class="payment-info">
+          <span class="payment-amount-big">1,000 sats</span>
+        </div>
+        <div class="payment-address">→ tamedpeen07@walletofsatoshi.com</div>
+
+        <div class="qr-box">
+          <canvas id="invoiceQR"></canvas>
+        </div>
+
+        <div class="invoice-copy" id="invoiceText" onclick="copyInvoice()">
+          Generando invoice...
+        </div>
+        <div class="copy-hint">👆 Tocá para copiar el invoice</div>
+
+        <div class="waiting-indicator">
+          <div class="dot-pulse"></div>
+          Esperando pago...
+        </div>
+      </div>
+
+      <button class="btn btn-success" onclick="confirmPayment()">
+        ✅ Ya pagué → Ver mi ticket
+      </button>
+      <button class="btn btn-secondary" onclick="showView('event')">Cancelar</button>
+    </div>
+
+  </div>
+
+  <!-- ════════════════════════════════════════
+       VISTA 3: TICKET
+  ════════════════════════════════════════ -->
+  <div id="view-ticket" class="view">
+
+    <div class="success-banner">
+      <div class="icon">🎉</div>
+      <div>
+        <div class="text">¡Reserva confirmada!</div>
+        <div class="subtext">Mostrá este ticket al llegar al evento</div>
+      </div>
+    </div>
+
+    <div class="ticket-card">
+      <div class="ticket-header">⚡ Proof of Attendance</div>
+      <div class="ticket-event" id="ticketEventName">Lightning Hackathon FOUNDATIONS</div>
+      <div class="ticket-name" id="ticketAttendeeName"></div>
+
+      <div class="qr-box">
+        <canvas id="ticketQR"></canvas>
+      </div>
+
+      <hr class="ticket-divider">
+
+      <div class="ticket-code-label">Código de entrada</div>
+      <div class="ticket-code" id="ticketCode">HDMP-XXXXXX</div>
+
+      <div class="ticket-detail" id="ticketDetail">
+        📅 Martes 10 de Marzo, 2026<br>
+        🕖 19:00hs · 📍 La Crypta, Buenos Aires<br>
+        💰 1,000 sats pagados<br>
+        🍺 1 consumición incluida
+      </div>
+    </div>
+
+    <button class="btn btn-primary" style="margin-top: 20px" onclick="shareTicket()">
+      📤 Compartir ticket
+    </button>
+    <button class="btn btn-secondary" onclick="showView('event')">← Ver el evento</button>
+
+    <div class="footer">
+      ¡Nos vemos el 10 de Marzo! ⚡
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════
+       VISTA 4: PANEL ORGANIZADOR
+  ════════════════════════════════════════ -->
+  <div id="view-organizer" class="view">
+
+    <div class="org-header">
+      <div class="org-title">Panel del Organizador</div>
+      <div class="org-badge">🔒 Privado</div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card stat-total">
+        <div class="stat-num" id="statTotal">0</div>
+        <div class="stat-label">Reservas</div>
+      </div>
+      <div class="stat-card stat-redeemed">
+        <div class="stat-num" id="statRedeemed">0</div>
+        <div class="stat-label">Canjeadas</div>
+      </div>
+      <div class="stat-card stat-noshow">
+        <div class="stat-num" id="statNoshow">0</div>
+        <div class="stat-label">No-shows</div>
+      </div>
+    </div>
+
+    <!-- Canjear ticket -->
+    <div class="card redeem-section">
+      <div class="section-title" style="margin-bottom: 6px">Canjear ticket</div>
+      <div class="section-sub">Ingresá el código del QR del asistente</div>
+
+      <div id="redeemFeedback" class="redeem-feedback"></div>
+
+      <div class="redeem-input-row">
+        <input type="text" id="redeemInput" placeholder="HDMP-XXXXXX"
+               oninput="this.value = this.value.toUpperCase()"
+               onkeydown="if(event.key==='Enter') redeemTicket()">
+        <button class="btn btn-redeem" onclick="redeemTicket()">✅ Canjear</button>
+      </div>
+    </div>
+
+    <!-- Lista de reservas -->
+    <div class="section-title" style="margin-bottom: 12px">Todas las reservas</div>
+    <div id="reservationsList" class="reservations-list">
+      <div class="empty-state">
+        <div class="empty-icon">🎟️</div>
+        <p>No hay reservas aún</p>
+      </div>
+    </div>
+
+    <button class="btn btn-secondary" style="margin-top: 24px" onclick="showView('event')">
+      ← Ver el evento
+    </button>
+
+    <button class="btn btn-secondary" style="margin-top: 10px; color: #ff6b6b"
+            onclick="clearAllData()">
+      🗑️ Limpiar datos (demo)
+    </button>
+  </div>
+
+  <!-- ════════════════════════════════════════
+       SCRIPT PRINCIPAL
+  ════════════════════════════════════════ -->
   <script type="module">
+    // Importamos las librerías que ya están instaladas
     import { LightningAddress } from "https://esm.sh/@getalby/lightning-tools@5";
-    
-    window.webln = null;
+    import QRCode from "https://esm.sh/qrcode@1.5.3";
 
-    // Conectar wallet
-    window.connectWallet = async function() {
-      const status = document.getElementById("walletStatus");
-      const output = document.getElementById("walletOutput");
-      const btn = document.getElementById("connectBtn");
-      
-      try {
-        btn.disabled = true;
-        btn.textContent = "Conectando...";
-        
-        if (typeof window.webln === "undefined" || !window.webln) {
-          // Intentar detectar provider
-          if (window.nostr) {
-            output.textContent = "⚠️ Detecté Nostr pero no WebLN. Instalá Alby para pagos Lightning.";
-            output.className = "output show error";
-            return;
-          }
-          throw new Error("No se detectó wallet. Instalá Alby u otra extensión WebLN.");
-        }
-
-        await window.webln.enable();
-        const info = await window.webln.getInfo();
-        
-        status.className = "status connected";
-        status.innerHTML = `🟢 Conectado: ${info.node?.alias || "Wallet"}`;
-        
-        output.textContent = JSON.stringify(info, null, 2);
-        output.className = "output show success";
-        
-        // Habilitar botones
-        document.getElementById("createInvoiceBtn").disabled = false;
-        document.getElementById("payBtn").disabled = false;
-        
-        btn.textContent = "✓ Conectado";
-        
-      } catch (err) {
-        output.textContent = "❌ " + err.message;
-        output.className = "output show error";
-        btn.disabled = false;
-        btn.textContent = "Conectar Wallet";
-      }
+    // ── CONFIGURACIÓN DEL EVENTO ──────────────────────────
+    const EVENT = {
+      name: "Lightning Hackathon FOUNDATIONS",
+      date: "Martes 10 de Marzo, 2026",
+      time: "19:00hs",
+      location: "La Crypta, Buenos Aires",
+      price: 1000,          // sats (precio de una consumición)
+      maxCapacity: 30,
+      organizerAddress: "tamedpeen07@walletofsatoshi.com"
     };
 
-    // Resolver Lightning Address
-    window.resolveLightningAddress = async function() {
-      const address = document.getElementById("lnAddress").value;
-      const amount = parseInt(document.getElementById("lnAmount").value) || 21;
-      const output = document.getElementById("lnAddressOutput");
-      
+    // Variable que guarda el invoice actual mientras el usuario paga
+    let currentInvoice = null;
+    let currentName = "";
+
+    // ── NAVEGACIÓN ENTRE VISTAS ───────────────────────────
+    window.showView = function(viewId) {
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      document.getElementById('view-' + viewId).classList.add('active');
+      window.scrollTo(0, 0);
+
+      // Si abrimos el panel del organizador, recargamos los datos
+      if (viewId === 'organizer') loadOrganizerPanel();
+    };
+
+    // ── DATOS EN LOCALSTORAGE ─────────────────────────────
+    // Guardamos las reservas en el navegador para persistencia (demo)
+    function getReservations() {
+      return JSON.parse(localStorage.getItem('poa_reservations') || '[]');
+    }
+
+    function saveReservation(reservation) {
+      const reservations = getReservations();
+      reservations.push(reservation);
+      localStorage.setItem('poa_reservations', JSON.stringify(reservations));
+    }
+
+    function markRedeemed(ticketCode) {
+      const reservations = getReservations();
+      const idx = reservations.findIndex(r => r.ticketCode === ticketCode);
+      if (idx === -1) return false;
+      if (reservations[idx].status === 'redeemed') return 'already';
+      reservations[idx].status = 'redeemed';
+      reservations[idx].redeemedAt = new Date().toISOString();
+      localStorage.setItem('poa_reservations', JSON.stringify(reservations));
+      return true;
+    }
+
+    // ── GENERAR CÓDIGO ÚNICO DE TICKET ────────────────────
+    function generateTicketCode() {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // sin caracteres confusos
+      let code = 'HDMP-';
+      for (let i = 0; i < 6; i++) {
+        code += chars[Math.floor(Math.random() * chars.length)];
+      }
+      return code;
+    }
+
+    // ── ACTUALIZAR INDICADOR DE PASOS ────────────────────
+    function setStep(step) {
+      const steps = [
+        document.getElementById('step-ind-1'),
+        document.getElementById('step-ind-2'),
+        document.getElementById('step-ind-3'),
+      ];
+      const lines = [
+        document.getElementById('step-line-1'),
+        document.getElementById('step-line-2'),
+      ];
+
+      steps.forEach((el, i) => {
+        el.className = 'step ' + (i + 1 < step ? 'done' : i + 1 === step ? 'active' : 'pending');
+        if (i + 1 < step) el.textContent = '✓';
+        else el.textContent = i + 1;
+      });
+      lines.forEach((el, i) => {
+        el.className = 'step-line ' + (i + 1 < step ? 'done' : '');
+      });
+    }
+
+    // ── GENERAR INVOICE ───────────────────────────────────
+    // Este es el corazón de la app: pedirle a la Lightning Address
+    // del organizador que genere un invoice por el precio del evento.
+    window.generateInvoice = async function() {
+      const btn = document.getElementById('generateBtn');
+      btn.disabled = true;
+      btn.textContent = '⏳ Generando invoice...';
+
+      currentName = document.getElementById('attendeeName').value.trim() || 'Anónimo';
+
       try {
-        output.textContent = "Resolviendo...";
-        output.className = "output show";
-        
-        const ln = new LightningAddress(address);
+        // 1. Resolvemos la Lightning Address del organizador
+        //    Esto hace una petición LNURL al servidor de WoS
+        const ln = new LightningAddress(EVENT.organizerAddress);
         await ln.fetch();
-        
-        const invoice = await ln.requestInvoice({ satoshi: amount });
-        
-        output.textContent = `✅ Invoice de ${amount} sats:\n\n${invoice.paymentRequest}`;
-        output.className = "output show success";
-        
-      } catch (err) {
-        output.textContent = "❌ " + err.message;
-        output.className = "output show error";
-      }
-    };
 
-    // Crear invoice
-    window.createInvoice = async function() {
-      const amount = parseInt(document.getElementById("invoiceAmount").value);
-      const memo = document.getElementById("invoiceMemo").value;
-      const output = document.getElementById("invoiceOutput");
-      
-      try {
-        output.textContent = "Creando invoice...";
-        output.className = "output show";
-        
-        const invoice = await window.webln.makeInvoice({
-          amount: amount,
-          defaultMemo: memo
+        // 2. Pedimos un invoice por el precio del evento
+        //    El invoice tiene un tiempo de expiración (~10 minutos)
+        const invoice = await ln.requestInvoice({
+          satoshi: EVENT.price,
+          comment: `Reserva HDMP - ${currentName}`
         });
-        
-        output.textContent = `✅ Invoice creado:\n\n${invoice.paymentRequest}`;
-        output.className = "output show success";
-        
+
+        // Guardamos el invoice para poder copiarlo
+        currentInvoice = invoice.paymentRequest;
+
+        // 3. Mostramos el QR con el invoice
+        const canvas = document.getElementById('invoiceQR');
+        await QRCode.toCanvas(canvas, currentInvoice, {
+          width: 260,
+          margin: 1,
+          color: { dark: '#000000', light: '#ffffff' }
+        });
+
+        // 4. Mostramos el texto del invoice (para copiar)
+        const invoiceEl = document.getElementById('invoiceText');
+        invoiceEl.textContent = currentInvoice;
+
+        // 5. Cambiamos al paso 2 (QR de pago)
+        document.getElementById('step-form').style.display = 'none';
+        document.getElementById('step-payment').style.display = 'block';
+        setStep(2);
+
       } catch (err) {
-        output.textContent = "❌ " + err.message;
-        output.className = "output show error";
+        alert('❌ Error generando invoice: ' + err.message + '\n\nVerificá tu conexión a internet.');
+        btn.disabled = false;
+        btn.textContent = '⚡ Generar QR de pago';
       }
     };
 
-    // Pagar invoice
-    window.payInvoice = async function() {
-      const invoice = document.getElementById("payInvoice").value.trim();
-      const output = document.getElementById("payOutput");
-      
-      if (!invoice) {
-        output.textContent = "⚠️ Pegá un invoice bolt11";
-        output.className = "output show error";
+    // ── COPIAR INVOICE ────────────────────────────────────
+    window.copyInvoice = function() {
+      if (!currentInvoice) return;
+      navigator.clipboard.writeText(currentInvoice).then(() => {
+        const el = document.getElementById('invoiceText');
+        el.style.borderColor = '#00ff9d';
+        el.style.color = '#00ff9d';
+        setTimeout(() => {
+          el.style.borderColor = '';
+          el.style.color = '';
+        }, 1500);
+      });
+    };
+
+    // ── CONFIRMAR PAGO Y GENERAR TICKET ──────────────────
+    // El usuario dice "ya pagué". Generamos su ticket QR único.
+    // (En producción, verificaríamos el pago via webhook de la wallet)
+    window.confirmPayment = async function() {
+      setStep(3);
+
+      // Generamos un código único para este ticket
+      const ticketCode = generateTicketCode();
+      const now = new Date();
+
+      // Guardamos la reserva en localStorage
+      const reservation = {
+        ticketCode,
+        name: currentName,
+        invoice: currentInvoice,
+        amount: EVENT.price,
+        status: 'confirmed',
+        createdAt: now.toISOString(),
+        redeemedAt: null
+      };
+      saveReservation(reservation);
+
+      // Actualizamos la UI del ticket
+      document.getElementById('ticketCode').textContent = ticketCode;
+      document.getElementById('ticketAttendeeName').textContent =
+        currentName !== 'Anónimo' ? `Para: ${currentName}` : '';
+      document.getElementById('ticketEventName').textContent = EVENT.name;
+
+      // Generamos el QR del ticket (contiene el código único)
+      const canvas = document.getElementById('ticketQR');
+      await QRCode.toCanvas(canvas, ticketCode, {
+        width: 200,
+        margin: 1,
+        color: { dark: '#000000', light: '#ffffff' }
+      });
+
+      // Navegamos a la vista del ticket
+      showView('ticket');
+      updateSpotsBar();
+    };
+
+    // ── COMPARTIR TICKET ──────────────────────────────────
+    window.shareTicket = function() {
+      const ticketCode = document.getElementById('ticketCode').textContent;
+      if (navigator.share) {
+        navigator.share({
+          title: '⚡ Mi ticket para Lightning Hackathon FOUNDATIONS',
+          text: `Reservé mi lugar con Lightning Network! Código: ${ticketCode}\n\nSistema: Proof of Attendance (HDMP)`,
+        });
+      } else {
+        navigator.clipboard.writeText(ticketCode);
+        alert('✅ Código copiado al portapapeles: ' + ticketCode);
+      }
+    };
+
+    // ── CANJEAR TICKET (ORGANIZADOR) ─────────────────────
+    window.redeemTicket = function() {
+      const code = document.getElementById('redeemInput').value.trim().toUpperCase();
+      const feedback = document.getElementById('redeemFeedback');
+
+      if (!code || code.length < 6) {
+        feedback.textContent = '⚠️ Ingresá un código válido (ej: HDMP-AB1234)';
+        feedback.className = 'redeem-feedback show error';
         return;
       }
-      
-      try {
-        output.textContent = "Enviando pago...";
-        output.className = "output show";
-        
-        const result = await window.webln.sendPayment(invoice);
-        
-        output.textContent = `✅ Pago exitoso!\n\nPreimage: ${result.preimage}`;
-        output.className = "output show success";
-        
-      } catch (err) {
-        output.textContent = "❌ " + err.message;
-        output.className = "output show error";
+
+      const result = markRedeemed(code);
+
+      if (result === true) {
+        feedback.textContent = `✅ Ticket ${code} canjeado correctamente. ¡Bienvenido!`;
+        feedback.className = 'redeem-feedback show success';
+        document.getElementById('redeemInput').value = '';
+        loadOrganizerPanel(); // Recargamos la lista
+      } else if (result === 'already') {
+        feedback.textContent = `⚠️ El ticket ${code} ya fue canjeado anteriormente.`;
+        feedback.className = 'redeem-feedback show error';
+      } else {
+        feedback.textContent = `❌ Código ${code} no encontrado. Verificá que sea correcto.`;
+        feedback.className = 'redeem-feedback show error';
+      }
+
+      // Ocultamos el mensaje después de 4 segundos
+      setTimeout(() => { feedback.className = 'redeem-feedback'; }, 4000);
+    };
+
+    // ── CARGAR PANEL ORGANIZADOR ──────────────────────────
+    function loadOrganizerPanel() {
+      const reservations = getReservations();
+      const total = reservations.length;
+      const redeemed = reservations.filter(r => r.status === 'redeemed').length;
+      const noshow = Math.max(0, total - redeemed); // simplificado para demo
+
+      document.getElementById('statTotal').textContent = total;
+      document.getElementById('statRedeemed').textContent = redeemed;
+      document.getElementById('statNoshow').textContent = noshow;
+
+      const list = document.getElementById('reservationsList');
+
+      if (total === 0) {
+        list.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">🎟️</div>
+            <p>No hay reservas aún</p>
+          </div>`;
+        return;
+      }
+
+      // Mostramos las reservas más recientes primero
+      const sorted = [...reservations].reverse();
+      list.innerHTML = sorted.map(r => {
+        const time = new Date(r.createdAt).toLocaleTimeString('es-AR', {
+          hour: '2-digit', minute: '2-digit'
+        });
+        const date = new Date(r.createdAt).toLocaleDateString('es-AR', {
+          day: '2-digit', month: '2-digit'
+        });
+        return `
+          <div class="reservation-item ${r.status === 'redeemed' ? 'redeemed' : ''}">
+            <div class="reservation-info">
+              <div class="res-name">${r.name}</div>
+              <div class="res-code">${r.ticketCode}</div>
+              <div class="res-time">${date} ${time} · ${r.amount.toLocaleString()} sats</div>
+            </div>
+            <div class="res-status ${r.status}">
+              ${r.status === 'redeemed' ? '✅ Canjeado' : '⏳ Pendiente'}
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    // ── ACTUALIZAR BARRA DE LUGARES ───────────────────────
+    function updateSpotsBar() {
+      const reservations = getReservations();
+      const taken = reservations.length;
+      const available = EVENT.maxCapacity - taken;
+      const pct = (taken / EVENT.maxCapacity) * 100;
+
+      document.getElementById('spotsText').textContent =
+        available > 0 ? `${available} lugares disponibles` : '¡Sin lugares disponibles!';
+      document.getElementById('spotsCount').textContent = `${taken}/${EVENT.maxCapacity}`;
+      document.getElementById('spotsBar').style.width = pct + '%';
+
+      // Cambiar badge si queda poco
+      const badge = document.querySelector('.badge');
+      if (available <= 5 && available > 0) {
+        badge.className = 'badge warning';
+        badge.textContent = `⚠️ ¡Últimos ${available} lugares!`;
+      } else if (available === 0) {
+        badge.className = 'badge error';
+        badge.textContent = '🔴 Evento completo';
+        document.querySelector('.btn-primary').disabled = true;
+        document.querySelector('.btn-primary').textContent = 'Sin lugares disponibles';
+      }
+    }
+
+    // ── LIMPIAR DATOS (solo para demo) ───────────────────
+    window.clearAllData = function() {
+      if (confirm('¿Borrar todas las reservas? Solo para demo.')) {
+        localStorage.removeItem('poa_reservations');
+        loadOrganizerPanel();
+        updateSpotsBar();
       }
     };
 
-    // Auto-detect wallet on load
-    if (window.webln) {
-      document.getElementById("walletStatus").innerHTML = "🟡 Wallet detectada - Click para conectar";
-    }
+    // ── INICIALIZACIÓN ────────────────────────────────────
+    // Al cargar la página, actualizamos los lugares disponibles
+    updateSpotsBar();
+    setStep(1);
+
+    // Si la URL tiene #organizer, ir directo al panel
+    if (location.hash === '#organizer') showView('organizer');
   </script>
+
 </body>
 </html>
