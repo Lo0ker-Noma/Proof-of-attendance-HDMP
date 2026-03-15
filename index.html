@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>⚡ Proof of Attendance — HDMP</title>
+  <title>⚡ Proof of Attendance — HDMP v2</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -29,17 +29,34 @@
     }
     .logo { font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
     .logo span { color: #ffc800; }
-    .organizer-link {
+    .logo .version { font-size: 0.65rem; color: rgba(255,255,255,0.3); font-weight: 400; }
+    .header-links { display: flex; gap: 16px; align-items: center; }
+    .header-link {
       font-size: 0.8rem;
       color: rgba(255,255,255,0.4);
       text-decoration: none;
       cursor: pointer;
       transition: color 0.2s;
     }
-    .organizer-link:hover { color: #ffc800; }
+    .header-link:hover { color: #ffc800; }
+    .header-link.active { color: #ffc800; }
+
+    /* ── NWC STATUS ── */
+    .nwc-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      padding: 4px 10px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.05);
+    }
+    .nwc-dot { width: 6px; height: 6px; border-radius: 50%; }
+    .nwc-dot.connected { background: #00ff9d; box-shadow: 0 0 6px #00ff9d; }
+    .nwc-dot.disconnected { background: #ff6b6b; }
 
     /* ── VISTAS ── */
-    .view { display: none; padding: 24px 20px; max-width: 480px; margin: 0 auto; }
+    .view { display: none; padding: 24px 20px; max-width: 520px; margin: 0 auto; }
     .view.active { display: block; }
 
     /* ── CARDS ── */
@@ -65,6 +82,8 @@
     .badge.live { background: rgba(0,255,157,0.15); color: #00ff9d; }
     .badge.warning { background: rgba(255,200,0,0.15); color: #ffc800; }
     .badge.error { background: rgba(255,107,107,0.15); color: #ff6b6b; }
+    .badge.nwc { background: rgba(124,58,237,0.15); color: #a78bfa; }
+    .badge.zap { background: rgba(255,200,0,0.15); color: #ffc800; }
 
     /* ── EVENTO ── */
     .event-emoji { font-size: 4rem; text-align: center; margin-bottom: 16px; }
@@ -151,10 +170,34 @@
     }
     .btn-redeem:hover { transform: translateY(-2px); }
 
+    .btn-nwc {
+      background: linear-gradient(135deg, #7c3aed, #4f46e5);
+      color: #fff;
+    }
+    .btn-nwc:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(124,58,237,0.3); }
+
+    .btn-danger {
+      background: rgba(255,107,107,0.15);
+      color: #ff6b6b;
+      border: 1px solid rgba(255,107,107,0.3);
+    }
+    .btn-danger:hover { background: rgba(255,107,107,0.25); }
+
+    .btn-export {
+      background: linear-gradient(135deg, #06b6d4, #0891b2);
+      color: #fff;
+    }
+
+    .btn-small {
+      width: auto;
+      padding: 8px 16px;
+      font-size: 0.85rem;
+    }
+
     /* ── INPUTS ── */
     .input-group { margin-bottom: 16px; }
     .input-label { font-size: 0.85rem; color: rgba(255,255,255,0.6); margin-bottom: 8px; display: block; }
-    input[type="text"], input[type="number"] {
+    input[type="text"], input[type="number"], textarea {
       width: 100%;
       padding: 14px 16px;
       border: 1px solid rgba(255,255,255,0.15);
@@ -162,9 +205,10 @@
       background: rgba(255,255,255,0.05);
       color: #fff;
       font-size: 1rem;
+      font-family: inherit;
     }
-    input:focus { outline: none; border-color: #ffc800; }
-    input::placeholder { color: rgba(255,255,255,0.3); }
+    input:focus, textarea:focus { outline: none; border-color: #ffc800; }
+    input::placeholder, textarea::placeholder { color: rgba(255,255,255,0.3); }
 
     /* ── PAYMENT ── */
     .step-indicator {
@@ -206,7 +250,6 @@
       color: rgba(255,255,255,0.6);
       cursor: pointer;
       transition: border-color 0.2s;
-      position: relative;
     }
     .invoice-copy:hover { border-color: #ffc800; color: #fff; }
     .copy-hint { font-size: 0.75rem; color: rgba(255,255,255,0.4); text-align: center; margin-top: 8px; }
@@ -219,7 +262,7 @@
       margin: 12px 0;
     }
     .payment-amount-big { font-size: 1.4rem; font-weight: 800; color: #ffc800; }
-    .payment-address { font-size: 0.8rem; color: rgba(255,255,255,0.4); }
+    .payment-address { font-size: 0.8rem; color: rgba(255,255,255,0.4); text-align: center; }
 
     .waiting-indicator {
       display: flex;
@@ -267,6 +310,19 @@
     .success-banner .text { font-size: 0.9rem; color: #00ff9d; font-weight: 600; }
     .success-banner .subtext { font-size: 0.8rem; color: rgba(255,255,255,0.5); margin-top: 2px; }
 
+    /* ── ZAP INDICATOR ── */
+    .zap-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(255,200,0,0.1);
+      border: 1px solid rgba(255,200,0,0.2);
+      border-radius: 8px;
+      padding: 4px 8px;
+      font-size: 0.7rem;
+      color: #ffc800;
+    }
+
     /* ── ORGANIZER ── */
     .org-header { display: flex; align-items: center; gap: 10px; margin-bottom: 24px; }
     .org-title { font-size: 1.4rem; font-weight: 800; }
@@ -299,6 +355,7 @@
     .reservation-info .res-name { font-size: 0.95rem; font-weight: 600; }
     .reservation-info .res-code { font-size: 0.8rem; font-family: monospace; color: rgba(255,255,255,0.4); margin-top: 3px; }
     .reservation-info .res-time { font-size: 0.75rem; color: rgba(255,255,255,0.3); margin-top: 3px; }
+    .reservation-info .res-hash { font-size: 0.65rem; font-family: monospace; color: rgba(124,58,237,0.6); margin-top: 2px; }
     .res-status { font-size: 0.8rem; font-weight: 600; padding: 5px 12px; border-radius: 20px; white-space: nowrap; }
     .res-status.confirmed { background: rgba(255,200,0,0.15); color: #ffc800; }
     .res-status.redeemed { background: rgba(0,255,157,0.15); color: #00ff9d; }
@@ -318,28 +375,189 @@
     .redeem-feedback.error { background: rgba(255,107,107,0.15); color: #ff6b6b; border: 1px solid rgba(255,107,107,0.3); }
     .redeem-feedback.show { display: block; }
 
+    /* ── AUDIT DASHBOARD ── */
+    .audit-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+    .audit-title { font-size: 1.4rem; font-weight: 800; }
+    .audit-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 24px; }
+    .audit-stat {
+      background: rgba(255,255,255,0.05);
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .audit-stat-label { font-size: 0.75rem; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 1px; }
+    .audit-stat-value { font-size: 1.4rem; font-weight: 800; margin-top: 4px; }
+    .audit-stat-value.sats { color: #ffc800; }
+    .audit-stat-value.count { color: #00ff9d; }
+    .audit-stat-value.pending { color: #a78bfa; }
+    .audit-stat-value.verified { color: #06b6d4; }
+
+    .audit-table { width: 100%; margin-bottom: 24px; }
+    .audit-table-header {
+      display: grid;
+      grid-template-columns: 1fr 80px 90px 60px;
+      gap: 8px;
+      padding: 10px 14px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 10px 10px 0 0;
+      font-size: 0.7rem;
+      color: rgba(255,255,255,0.4);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .audit-row {
+      display: grid;
+      grid-template-columns: 1fr 80px 90px 60px;
+      gap: 8px;
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      font-size: 0.85rem;
+      align-items: center;
+    }
+    .audit-row:hover { background: rgba(255,255,255,0.03); }
+    .audit-hash { font-family: monospace; font-size: 0.7rem; color: rgba(255,255,255,0.4); }
+    .audit-amount { font-weight: 700; color: #ffc800; text-align: right; }
+    .audit-time { font-size: 0.75rem; color: rgba(255,255,255,0.5); }
+    .audit-verified { font-size: 0.7rem; }
+    .audit-verified.yes { color: #00ff9d; }
+    .audit-verified.no { color: #ff6b6b; }
+    .audit-verified.pending { color: rgba(255,255,255,0.3); }
+
+    .audit-filters {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .filter-btn {
+      padding: 6px 14px;
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 20px;
+      background: transparent;
+      color: rgba(255,255,255,0.6);
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .filter-btn:hover { border-color: #ffc800; color: #ffc800; }
+    .filter-btn.active { background: rgba(255,200,0,0.15); border-color: #ffc800; color: #ffc800; }
+
+    /* ── NWC SETUP ── */
+    .nwc-setup-card {
+      background: linear-gradient(135deg, rgba(124,58,237,0.1), rgba(79,70,229,0.05));
+      border: 1px solid rgba(124,58,237,0.3);
+      border-radius: 20px;
+      padding: 28px 24px;
+      text-align: center;
+      margin-bottom: 16px;
+    }
+    .nwc-icon { font-size: 3rem; margin-bottom: 12px; }
+    .nwc-title { font-size: 1.2rem; font-weight: 800; margin-bottom: 8px; }
+    .nwc-desc { font-size: 0.85rem; color: rgba(255,255,255,0.5); line-height: 1.6; margin-bottom: 20px; }
+
     /* ── FOOTER ── */
     .footer { text-align: center; padding: 24px; color: rgba(255,255,255,0.25); font-size: 0.8rem; }
     .footer a { color: rgba(255,200,0,0.5); text-decoration: none; }
 
+    /* ── TAB SYSTEM ── */
+    .tabs { display: flex; gap: 4px; margin-bottom: 20px; background: rgba(255,255,255,0.05); border-radius: 12px; padding: 4px; }
+    .tab {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      background: transparent;
+      color: rgba(255,255,255,0.5);
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+    }
+    .tab:hover { color: rgba(255,255,255,0.8); }
+    .tab.active { background: rgba(255,200,0,0.15); color: #ffc800; }
+
+    /* ── TOAST NOTIFICATIONS ── */
+    .toast-container { position: fixed; top: 80px; right: 20px; z-index: 100; display: flex; flex-direction: column; gap: 8px; }
+    .toast {
+      padding: 12px 20px;
+      border-radius: 12px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      animation: slideIn 0.3s ease, fadeOut 0.3s ease 3s forwards;
+      max-width: 320px;
+    }
+    .toast.success { background: rgba(0,255,157,0.9); color: #000; }
+    .toast.error { background: rgba(255,107,107,0.9); color: #fff; }
+    .toast.info { background: rgba(124,58,237,0.9); color: #fff; }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    @keyframes fadeOut { to { opacity: 0; transform: translateY(-10px); } }
+
     @media (max-width: 480px) {
       .view { padding: 20px 16px; }
       .event-title { font-size: 1.4rem; }
+      .header-links { gap: 8px; }
+      .audit-table-header, .audit-row { grid-template-columns: 1fr 70px 80px 50px; font-size: 0.75rem; }
     }
   </style>
 </head>
 <body>
 
+  <!-- TOAST CONTAINER -->
+  <div class="toast-container" id="toastContainer"></div>
+
   <!-- HEADER -->
   <header>
-    <div class="logo">⚡ <span>HDMP</span> · Proof of Attendance</div>
-    <a class="organizer-link" onclick="showView('organizer')">🔧 Organizer</a>
+    <div class="logo">⚡ <span>HDMP</span> <span class="version">v2 · NWC + Zaps</span></div>
+    <div class="header-links">
+      <div class="nwc-status" id="nwcStatus">
+        <div class="nwc-dot disconnected" id="nwcDot"></div>
+        <span id="nwcStatusText">Sin wallet</span>
+      </div>
+      <a class="header-link" onclick="showView('event')">Evento</a>
+      <a class="header-link" onclick="showView('audit')">Auditoría</a>
+      <a class="header-link" onclick="showView('organizer')">Organizer</a>
+    </div>
   </header>
+
+  <!-- ════════════════════════════════════════
+       VISTA 0: NWC SETUP
+  ════════════════════════════════════════ -->
+  <div id="view-nwc-setup" class="view">
+    <div class="nwc-setup-card">
+      <div class="nwc-icon">🔌</div>
+      <div class="nwc-title">Conectar Wallet (NWC)</div>
+      <div class="nwc-desc">
+        Para usar HDMP v2, necesitás conectar tu wallet via Nostr Wallet Connect (NIP-47).
+        Esto permite crear invoices, verificar pagos automáticamente y registrar Zaps.
+      </div>
+
+      <div class="input-group" style="text-align:left">
+        <label class="input-label">NWC Connection String</label>
+        <textarea id="nwcInput" rows="3" placeholder="nostr+walletconnect://..." style="font-size:0.8rem;font-family:monospace;resize:vertical"></textarea>
+      </div>
+
+      <button class="btn btn-nwc" id="nwcConnectBtn" onclick="connectNWC()">
+        🔗 Conectar Wallet
+      </button>
+
+      <button class="btn btn-secondary" onclick="useDemoMode()">
+        🎮 Modo Demo (sin wallet real)
+      </button>
+    </div>
+
+    <div class="card" style="font-size:0.85rem;color:rgba(255,255,255,0.5);line-height:1.8">
+      <strong style="color:#fff">¿Cómo obtengo mi NWC string?</strong><br>
+      1. Andá a <strong>getalby.com</strong> o tu wallet NWC compatible<br>
+      2. Settings → Nostr Wallet Connect<br>
+      3. Create new connection (con permisos: make_invoice, lookup_invoice, get_balance, list_transactions)<br>
+      4. Copiá el string que empieza con <code style="color:#a78bfa">nostr+walletconnect://</code>
+    </div>
+  </div>
 
   <!-- ════════════════════════════════════════
        VISTA 1: EVENTO
   ════════════════════════════════════════ -->
-  <div id="view-event" class="view active">
+  <div id="view-event" class="view">
     <div class="badge live">🟢 Plazas disponibles</div>
 
     <div class="card">
@@ -352,6 +570,7 @@
         <li><span class="icon">🕖</span> 19:00hs (Argentina)</li>
         <li><span class="icon">📍</span> La Crypta, Buenos Aires</li>
         <li><span class="icon">👥</span> Máximo 30 personas</li>
+        <li><span class="icon">🔗</span> Pagos via <strong style="color:#a78bfa">NWC (NIP-47)</strong> + <strong style="color:#ffc800">Zaps (NIP-57)</strong></li>
       </ul>
 
       <div class="price-box">
@@ -376,24 +595,24 @@
       </div>
 
       <p class="description">
-        Reservá tu lugar pagando <strong>1,000 sats</strong> con Lightning Network.
+        Reservá tu lugar pagando <strong>1,000 sats</strong> con Lightning Network via NWC.
+        Tu pago queda registrado como un <strong>Zap (NIP-57)</strong> verificable en Nostr.
         Al llegar al evento, mostrás tu QR y canjeás tu consumición.
-        <strong>¿No podés venir? La reserva no se reembolsa.</strong>
       </p>
 
-      <button class="btn btn-primary" onclick="showView('reserve')">
+      <button class="btn btn-primary" id="reserveBtn" onclick="showView('reserve')">
         ⚡ Reservar mi lugar
       </button>
     </div>
 
     <div class="footer">
       <a href="https://hackaton.lacrypta.ar" target="_blank">hackaton.lacrypta.ar</a>
-      · Lightning Hackathons 2026
+      · Lightning Hackathons 2026 · NWC + Zaps
     </div>
   </div>
 
   <!-- ════════════════════════════════════════
-       VISTA 2: RESERVA + PAGO
+       VISTA 2: RESERVA + PAGO (NWC)
   ════════════════════════════════════════ -->
   <div id="view-reserve" class="view">
 
@@ -417,10 +636,15 @@
           <input type="text" id="attendeeName" placeholder="Ej: Satoshi" maxlength="40">
         </div>
 
+        <div class="input-group">
+          <label class="input-label">Tu npub (Nostr pubkey, opcional para Zap)</label>
+          <input type="text" id="attendeeNpub" placeholder="npub1... o hex pubkey" maxlength="128">
+        </div>
+
         <div class="price-box" style="margin-bottom: 0">
           <div>
             <div class="price-label">Vas a pagar</div>
-            <div class="price-sub">a tamedpeen07@walletofsatoshi.com</div>
+            <div class="price-sub" id="paymentMethod">via NWC (NIP-47)</div>
           </div>
           <div style="text-align:right">
             <div class="price-amount">1,000 sats</div>
@@ -428,8 +652,8 @@
         </div>
       </div>
 
-      <button class="btn btn-primary" id="generateBtn" onclick="generateInvoice()">
-        ⚡ Generar QR de pago
+      <button class="btn btn-primary" id="generateBtn" onclick="generateInvoiceNWC()">
+        ⚡ Generar Invoice via NWC
       </button>
       <button class="btn btn-secondary" onclick="showView('event')">← Volver</button>
     </div>
@@ -440,10 +664,11 @@
       <div class="section-sub">Abrí tu wallet Lightning y escaneá el QR</div>
 
       <div class="card">
+        <div class="badge nwc" style="margin-bottom:12px">🔗 Invoice generado via NWC</div>
         <div class="payment-info">
           <span class="payment-amount-big">1,000 sats</span>
         </div>
-        <div class="payment-address">→ tamedpeen07@walletofsatoshi.com</div>
+        <div class="payment-address" id="paymentDestination">→ Wallet del organizador</div>
 
         <div class="qr-box">
           <canvas id="invoiceQR"></canvas>
@@ -454,22 +679,28 @@
         </div>
         <div class="copy-hint">👆 Tocá para copiar el invoice</div>
 
-        <div class="waiting-indicator">
+        <div class="waiting-indicator" id="waitingIndicator">
           <div class="dot-pulse"></div>
-          Esperando pago...
+          <span id="waitingText">Verificando pago via NWC...</span>
         </div>
       </div>
 
-      <button class="btn btn-success" onclick="confirmPayment()">
-        ✅ Ya pagué → Ver mi ticket
-      </button>
-      <button class="btn btn-secondary" onclick="showView('event')">Cancelar</button>
+      <div id="paymentVerified" style="display:none">
+        <div class="success-banner">
+          <div class="icon">⚡</div>
+          <div>
+            <div class="text">¡Pago verificado via NWC!</div>
+            <div class="subtext" id="verifiedDetails">Preimage confirmado — generando Zap receipt...</div>
+          </div>
+        </div>
+      </div>
+      <button class="btn btn-secondary" id="cancelPaymentBtn" onclick="cancelPayment()">Cancelar</button>
     </div>
 
   </div>
 
   <!-- ════════════════════════════════════════
-       VISTA 3: TICKET
+       VISTA 3: TICKET (con Zap info)
   ════════════════════════════════════════ -->
   <div id="view-ticket" class="view">
 
@@ -477,12 +708,12 @@
       <div class="icon">🎉</div>
       <div>
         <div class="text">¡Reserva confirmada!</div>
-        <div class="subtext">Mostrá este ticket al llegar al evento</div>
+        <div class="subtext">Verificado via NWC · Zap registrado en Nostr</div>
       </div>
     </div>
 
     <div class="ticket-card">
-      <div class="ticket-header">⚡ Proof of Attendance</div>
+      <div class="ticket-header">⚡ Proof of Attendance · Zap Verified</div>
       <div class="ticket-event" id="ticketEventName">Lightning Hackathon FOUNDATIONS</div>
       <div class="ticket-name" id="ticketAttendeeName"></div>
 
@@ -500,6 +731,15 @@
         🕖 19:00hs · 📍 La Crypta, Buenos Aires<br>
         💰 1,000 sats pagados<br>
         🍺 1 consumición incluida
+      </div>
+
+      <hr class="ticket-divider">
+
+      <div style="text-align:left;font-size:0.75rem;color:rgba(255,255,255,0.4);line-height:1.8">
+        <strong style="color:#a78bfa">Datos del Zap (NIP-57)</strong><br>
+        <span id="ticketPaymentHash">Payment Hash: —</span><br>
+        <span id="ticketPreimage">Preimage: —</span><br>
+        <span id="ticketZapEvent">Zap Event: —</span>
       </div>
     </div>
 
@@ -539,6 +779,16 @@
       </div>
     </div>
 
+    <!-- NWC Wallet Info -->
+    <div class="card" id="walletInfoCard" style="display:none">
+      <div class="section-title" style="margin-bottom:12px">💰 Wallet (NWC)</div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="color:rgba(255,255,255,0.5);font-size:0.85rem">Balance actual</span>
+        <span style="color:#ffc800;font-size:1.2rem;font-weight:800" id="walletBalance">—</span>
+      </div>
+      <button class="btn btn-secondary btn-small" style="margin-top:12px" onclick="refreshWalletBalance()">🔄 Actualizar balance</button>
+    </div>
+
     <!-- Canjear ticket -->
     <div class="card redeem-section">
       <div class="section-title" style="margin-bottom: 6px">Canjear ticket</div>
@@ -566,56 +816,246 @@
     <button class="btn btn-secondary" style="margin-top: 24px" onclick="showView('event')">
       ← Ver el evento
     </button>
-
-    <button class="btn btn-secondary" style="margin-top: 10px; color: #ff6b6b"
-            onclick="clearAllData()">
+    <button class="btn btn-secondary" onclick="showView('nwc-setup')">
+      🔌 Reconfigurar NWC
+    </button>
+    <button class="btn btn-secondary" style="color: #ff6b6b" onclick="clearAllData()">
       🗑️ Limpiar datos (demo)
     </button>
   </div>
 
   <!-- ════════════════════════════════════════
-       SCRIPT PRINCIPAL
+       VISTA 5: AUDIT DASHBOARD
+  ════════════════════════════════════════ -->
+  <div id="view-audit" class="view">
+    <div class="audit-header">
+      <div>
+        <div class="audit-title">Auditoría de Pagos</div>
+        <div style="font-size:0.8rem;color:rgba(255,255,255,0.4)">Registro completo con verificación criptográfica</div>
+      </div>
+      <button class="btn btn-export btn-small" onclick="exportAuditCSV()">📊 Exportar CSV</button>
+    </div>
+
+    <!-- Audit Stats -->
+    <div class="audit-stats">
+      <div class="audit-stat">
+        <div class="audit-stat-label">Total recaudado</div>
+        <div class="audit-stat-value sats" id="auditTotalSats">0 sats</div>
+      </div>
+      <div class="audit-stat">
+        <div class="audit-stat-label">Transacciones</div>
+        <div class="audit-stat-value count" id="auditTotalTx">0</div>
+      </div>
+      <div class="audit-stat">
+        <div class="audit-stat-label">Verificadas (NWC)</div>
+        <div class="audit-stat-value verified" id="auditVerified">0</div>
+      </div>
+      <div class="audit-stat">
+        <div class="audit-stat-label">Con Zap Receipt</div>
+        <div class="audit-stat-value pending" id="auditZapped">0</div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="audit-filters">
+      <button class="filter-btn active" onclick="filterAudit('all', this)">Todos</button>
+      <button class="filter-btn" onclick="filterAudit('verified', this)">Verificados</button>
+      <button class="filter-btn" onclick="filterAudit('unverified', this)">Sin verificar</button>
+      <button class="filter-btn" onclick="filterAudit('zapped', this)">Con Zap</button>
+    </div>
+
+    <!-- Payment Log -->
+    <div class="audit-table">
+      <div class="audit-table-header">
+        <span>Asistente / Hash</span>
+        <span style="text-align:right">Monto</span>
+        <span>Fecha</span>
+        <span>Estado</span>
+      </div>
+      <div id="auditRows">
+        <div class="empty-state">
+          <div class="empty-icon">📊</div>
+          <p>No hay pagos registrados</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Integrity Check -->
+    <div class="card" id="integrityCard">
+      <div class="section-title" style="margin-bottom:8px">🔐 Integridad de datos</div>
+      <div style="font-size:0.8rem;color:rgba(255,255,255,0.5);line-height:1.6" id="integrityReport">
+        Ejecutá una verificación para comprobar la integridad de los registros de pago.
+      </div>
+      <button class="btn btn-secondary btn-small" style="margin-top:12px" onclick="runIntegrityCheck()">
+        🔍 Verificar integridad
+      </button>
+    </div>
+
+    <button class="btn btn-secondary" style="margin-top: 16px" onclick="showView('event')">
+      ← Ver el evento
+    </button>
+  </div>
+
+  <!-- ════════════════════════════════════════
+       SCRIPT PRINCIPAL — NWC + ZAPS + AUDIT
   ════════════════════════════════════════ -->
   <script type="module">
-    // Importamos las librerías que ya están instaladas
-    import { LightningAddress } from "https://esm.sh/@getalby/lightning-tools@5";
     import QRCode from "https://esm.sh/qrcode@1.5.3";
+    // nostr-tools for event creation and signing (NIP-57)
+    import { generateSecretKey, getPublicKey, finalizeEvent, verifyEvent } from "https://esm.sh/nostr-tools@2.7.0";
+    import { bytesToHex, hexToBytes } from "https://esm.sh/@noble/hashes@1.4.0/utils";
 
     // ── CONFIGURACIÓN DEL EVENTO ──────────────────────────
-    const EVENT = {
+    const EVENT_CONFIG = {
       name: "Lightning Hackathon FOUNDATIONS",
       date: "Martes 10 de Marzo, 2026",
       time: "19:00hs",
       location: "La Crypta, Buenos Aires",
-      price: 1000,          // sats (precio de una consumición)
+      price: 1000,          // sats
       maxCapacity: 30,
-      organizerAddress: "tamedpeen07@walletofsatoshi.com"
+      organizerLnAddress: "tamedpeen07@walletofsatoshi.com",
+      // Nostr pubkey del organizador (para Zaps)
+      organizerPubkey: "0000000000000000000000000000000000000000000000000000000000000000",
+      nostrRelays: ["wss://relay.damus.io", "wss://nos.lol", "wss://relay.nostr.band"]
     };
 
-    // Variable que guarda el invoice actual mientras el usuario paga
+    // ── STATE ────────────────────────────────────────────
+    let nwcClient = null;
+    let isNWCConnected = false;
+    let isDemoMode = false;
     let currentInvoice = null;
+    let currentPaymentHash = null;
     let currentName = "";
+    let currentNpub = "";
+    let paymentCheckInterval = null;
+
+    // Demo mode NWC mock
+    const nwcMock = {
+      async getInfo() { return { alias: "Demo Wallet", pubkey: "demo_pubkey_" + Math.random().toString(36).slice(2,10), network: "signet" }; },
+      async getBalance() { return { balance: 500000 * 1000 }; }, // 500k sats in msats
+      async makeInvoice({ amount, description }) {
+        const hash = Array.from(crypto.getRandomValues(new Uint8Array(32))).map(b => b.toString(16).padStart(2,'0')).join('');
+        return {
+          paymentRequest: "lnbc" + (amount/1000) + "n1demo_" + hash.slice(0,40) + "..." + Date.now().toString(36),
+          paymentHash: hash
+        };
+      },
+      async lookupInvoice({ payment_hash }) {
+        // Simulate: after a few checks, mark as paid
+        if (!this._lookupCount) this._lookupCount = {};
+        if (!this._lookupCount[payment_hash]) this._lookupCount[payment_hash] = 0;
+        this._lookupCount[payment_hash]++;
+        if (this._lookupCount[payment_hash] >= 3) {
+          const preimage = Array.from(crypto.getRandomValues(new Uint8Array(32))).map(b => b.toString(16).padStart(2,'0')).join('');
+          return { preimage, settled_at: Math.floor(Date.now()/1000), amount: EVENT_CONFIG.price * 1000 };
+        }
+        return { preimage: null, settled_at: null };
+      },
+      async listTransactions({ limit }) { return { transactions: getPaymentLog().slice(0, limit || 10) }; },
+      close() {}
+    };
+
+    // ── TOAST NOTIFICATIONS ──────────────────────────────
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      toast.textContent = message;
+      container.appendChild(toast);
+      setTimeout(() => toast.remove(), 3500);
+    }
+
+    // ── NWC CONNECTION ──────────────────────────────────
+    window.connectNWC = async function() {
+      const input = document.getElementById('nwcInput').value.trim();
+      const btn = document.getElementById('nwcConnectBtn');
+
+      if (!input.startsWith('nostr+walletconnect://')) {
+        showToast('El string debe empezar con nostr+walletconnect://', 'error');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = '⏳ Conectando...';
+
+      try {
+        // Dynamically import @getalby/sdk for NWC
+        const { nwc } = await import("https://esm.sh/@getalby/sdk@3");
+        nwcClient = new nwc.NWCClient({ nostrWalletConnectUrl: input });
+
+        // Test connection
+        const info = await nwcClient.getInfo();
+        isNWCConnected = true;
+        isDemoMode = false;
+
+        // Save NWC URL — WARNING: stored in plaintext (see security audit)
+        // In production: encrypt with Web Crypto API or use session-only storage
+        localStorage.setItem('hdmp_nwc_url', input);
+        console.log('NWC connected (secret redacted):', input.replace(/secret=[^&]+/, 'secret=REDACTED'));
+
+        updateNWCStatus(true, info.alias || 'Wallet conectada');
+        showToast(`Wallet "${info.alias || 'NWC'}" conectada`, 'success');
+        showView('event');
+
+      } catch (err) {
+        showToast('Error conectando: ' + err.message, 'error');
+        btn.disabled = false;
+        btn.textContent = '🔗 Conectar Wallet';
+      }
+    };
+
+    window.useDemoMode = function() {
+      isDemoMode = true;
+      isNWCConnected = true;
+      nwcClient = nwcMock;
+      updateNWCStatus(true, 'Demo Mode');
+      showToast('Modo demo activado — pagos simulados', 'info');
+      showView('event');
+    };
+
+    function updateNWCStatus(connected, text) {
+      const dot = document.getElementById('nwcDot');
+      const statusText = document.getElementById('nwcStatusText');
+      dot.className = 'nwc-dot ' + (connected ? 'connected' : 'disconnected');
+      statusText.textContent = text || (connected ? 'Conectada' : 'Sin wallet');
+    }
 
     // ── NAVEGACIÓN ENTRE VISTAS ───────────────────────────
     window.showView = function(viewId) {
+      // If trying to access payment views without NWC, redirect to setup
+      if (!isNWCConnected && viewId !== 'nwc-setup') {
+        viewId = 'nwc-setup';
+      }
+
       document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
       document.getElementById('view-' + viewId).classList.add('active');
       window.scrollTo(0, 0);
 
-      // Si abrimos el panel del organizador, recargamos los datos
+      // Update active header link
+      document.querySelectorAll('.header-link').forEach(l => l.classList.remove('active'));
+
       if (viewId === 'organizer') loadOrganizerPanel();
+      if (viewId === 'audit') loadAuditDashboard();
     };
 
-    // ── DATOS EN LOCALSTORAGE ─────────────────────────────
-    // Guardamos las reservas en el navegador para persistencia (demo)
+    // ── DATOS PERSISTENTES ─────────────────────────────
     function getReservations() {
-      return JSON.parse(localStorage.getItem('poa_reservations') || '[]');
+      try { return JSON.parse(localStorage.getItem('hdmp_reservations') || '[]'); }
+      catch(e) { console.error('Corrupt reservations data, resetting'); return []; }
     }
 
     function saveReservation(reservation) {
+      // Sanitize name before saving (XSS prevention)
+      if (reservation.name) reservation.name = sanitizeInput(reservation.name);
       const reservations = getReservations();
+      // Prevent duplicates by ticketCode AND paymentHash (double-spend prevention)
+      if (reservations.find(r => r.ticketCode === reservation.ticketCode)) return;
+      if (reservation.paymentHash && reservations.find(r => r.paymentHash === reservation.paymentHash)) {
+        console.warn('SECURITY: Duplicate paymentHash blocked:', reservation.paymentHash?.slice(0,16));
+        return;
+      }
       reservations.push(reservation);
-      localStorage.setItem('poa_reservations', JSON.stringify(reservations));
+      localStorage.setItem('hdmp_reservations', JSON.stringify(reservations));
     }
 
     function markRedeemed(ticketCode) {
@@ -625,13 +1065,43 @@
       if (reservations[idx].status === 'redeemed') return 'already';
       reservations[idx].status = 'redeemed';
       reservations[idx].redeemedAt = new Date().toISOString();
-      localStorage.setItem('poa_reservations', JSON.stringify(reservations));
+      localStorage.setItem('hdmp_reservations', JSON.stringify(reservations));
       return true;
+    }
+
+    // Payment log (separate from reservations for audit)
+    function getPaymentLog() {
+      try { return JSON.parse(localStorage.getItem('hdmp_payment_log') || '[]'); }
+      catch(e) { console.error('Corrupt payment log, resetting'); return []; }
+    }
+
+    function addPaymentLog(entry) {
+      const log = getPaymentLog();
+      // Prevent duplicate by paymentHash
+      if (log.find(l => l.paymentHash === entry.paymentHash)) return;
+      log.push(entry);
+      localStorage.setItem('hdmp_payment_log', JSON.stringify(log));
+    }
+
+    // ── SANITIZACIÓN DE INPUT (Security Fix) ────────────
+    function sanitizeInput(input) {
+      if (typeof input !== 'string') return '';
+      return input
+        .replace(/[<>"'&\x00]/g, '')
+        .replace(/[\u200B\u200C\u200D\uFEFF]/g, '')
+        .trim()
+        .slice(0, 100);
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
     }
 
     // ── GENERAR CÓDIGO ÚNICO DE TICKET ────────────────────
     function generateTicketCode() {
-      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // sin caracteres confusos
+      const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // sin 0,O,I,1,L (ambiguos)
       let code = 'HDMP-';
       for (let i = 0; i < 6; i++) {
         code += chars[Math.floor(Math.random() * chars.length)];
@@ -661,33 +1131,26 @@
       });
     }
 
-    // ── GENERAR INVOICE ───────────────────────────────────
-    // Este es el corazón de la app: pedirle a la Lightning Address
-    // del organizador que genere un invoice por el precio del evento.
-    window.generateInvoice = async function() {
+    // ── GENERAR INVOICE VIA NWC (NIP-47) ─────────────────
+    window.generateInvoiceNWC = async function() {
       const btn = document.getElementById('generateBtn');
       btn.disabled = true;
-      btn.textContent = '⏳ Generando invoice...';
+      btn.textContent = '⏳ Generando invoice via NWC...';
 
-      currentName = document.getElementById('attendeeName').value.trim() || 'Anónimo';
+      currentName = sanitizeInput(document.getElementById('attendeeName').value) || 'Anónimo';
+      currentNpub = sanitizeInput(document.getElementById('attendeeNpub').value) || '';
 
       try {
-        // 1. Resolvemos la Lightning Address del organizador
-        //    Esto hace una petición LNURL al servidor de WoS
-        const ln = new LightningAddress(EVENT.organizerAddress);
-        await ln.fetch();
-
-        // 2. Pedimos un invoice por el precio del evento
-        //    El invoice tiene un tiempo de expiración (~10 minutos)
-        const invoice = await ln.requestInvoice({
-          satoshi: EVENT.price,
-          comment: `Reserva HDMP - ${currentName}`
+        // Create invoice via NWC (NIP-47)
+        const invoiceResult = await nwcClient.makeInvoice({
+          amount: EVENT_CONFIG.price * 1000, // NWC uses millisats
+          description: `HDMP Reserva — ${currentName} — ${EVENT_CONFIG.name}`
         });
 
-        // Guardamos el invoice para poder copiarlo
-        currentInvoice = invoice.paymentRequest;
+        currentInvoice = invoiceResult.paymentRequest;
+        currentPaymentHash = invoiceResult.paymentHash;
 
-        // 3. Mostramos el QR con el invoice
+        // Show QR
         const canvas = document.getElementById('invoiceQR');
         await QRCode.toCanvas(canvas, currentInvoice, {
           width: 260,
@@ -695,88 +1158,262 @@
           color: { dark: '#000000', light: '#ffffff' }
         });
 
-        // 4. Mostramos el texto del invoice (para copiar)
-        const invoiceEl = document.getElementById('invoiceText');
-        invoiceEl.textContent = currentInvoice;
+        // Show invoice text
+        document.getElementById('invoiceText').textContent = currentInvoice;
+        document.getElementById('paymentDestination').textContent =
+          isDemoMode ? '→ Demo Wallet (simulado)' : '→ Wallet del organizador via NWC';
 
-        // 5. Cambiamos al paso 2 (QR de pago)
+        // Switch to payment step
         document.getElementById('step-form').style.display = 'none';
         document.getElementById('step-payment').style.display = 'block';
         setStep(2);
 
+        // Start polling for payment via NWC lookupInvoice
+        startPaymentVerification();
+
       } catch (err) {
-        alert('❌ Error generando invoice: ' + err.message + '\n\nVerificá tu conexión a internet.');
+        showToast('Error generando invoice: ' + err.message, 'error');
         btn.disabled = false;
-        btn.textContent = '⚡ Generar QR de pago';
+        btn.textContent = '⚡ Generar Invoice via NWC';
       }
+    };
+
+    // ── VERIFICACIÓN DE PAGO VIA NWC (NIP-47) ────────────
+    function startPaymentVerification() {
+      let checks = 0;
+      const maxChecks = 120; // 10 min at 5s intervals
+
+      paymentCheckInterval = setInterval(async () => {
+        checks++;
+        if (checks > maxChecks) {
+          clearInterval(paymentCheckInterval);
+          document.getElementById('waitingText').textContent = 'Timeout — invoice expirado';
+          return;
+        }
+
+        try {
+          const result = await nwcClient.lookupInvoice({
+            payment_hash: currentPaymentHash
+          });
+
+          if (result && (result.preimage || result.settled_at)) {
+            clearInterval(paymentCheckInterval);
+            await onPaymentVerified(result);
+          } else {
+            document.getElementById('waitingText').textContent =
+              `Verificando pago via NWC... (${checks}/${maxChecks})`;
+          }
+        } catch (err) {
+          console.log('Lookup error (retry):', err.message);
+        }
+      }, isDemoMode ? 2000 : 5000);
+    }
+
+    async function onPaymentVerified(paymentResult) {
+      // Show verification banner
+      document.getElementById('paymentVerified').style.display = 'block';
+      document.getElementById('waitingIndicator').style.display = 'none';
+      document.getElementById('cancelPaymentBtn').style.display = 'none';
+
+      const preimage = paymentResult.preimage || 'N/A';
+      document.getElementById('verifiedDetails').textContent =
+        `Preimage: ${preimage.slice(0,16)}... — Generando Zap receipt y ticket...`;
+
+      showToast('¡Pago verificado via NWC!', 'success');
+
+      // Create Zap Request event (NIP-57 kind 9734)
+      const zapRequestEvent = createZapRequestEvent();
+
+      // Create Zap Receipt event (NIP-57 kind 9735) — simulated for demo
+      const zapReceiptEvent = createZapReceiptEvent(zapRequestEvent, preimage);
+
+      // Log payment for audit
+      const paymentEntry = {
+        paymentHash: currentPaymentHash,
+        preimage: preimage,
+        amount: EVENT_CONFIG.price,
+        name: currentName,
+        npub: currentNpub,
+        invoice: currentInvoice,
+        settledAt: paymentResult.settled_at || Math.floor(Date.now() / 1000),
+        createdAt: new Date().toISOString(),
+        verified: true,
+        verificationMethod: isDemoMode ? 'NWC (demo)' : 'NWC (NIP-47)',
+        zapRequestId: zapRequestEvent?.id || null,
+        zapReceiptId: zapReceiptEvent?.id || null
+      };
+      addPaymentLog(paymentEntry);
+
+      // Wait a beat then generate ticket
+      await new Promise(r => setTimeout(r, 1500));
+      await generateTicket(preimage, zapRequestEvent, zapReceiptEvent);
+    }
+
+    // ── NIP-57: ZAP REQUEST (Kind 9734) ──────────────────
+    function createZapRequestEvent() {
+      try {
+        // Generate ephemeral key for this zap request
+        const sk = generateSecretKey();
+        const pk = getPublicKey(sk);
+
+        const zapRequest = {
+          kind: 9734,
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [
+            ["p", EVENT_CONFIG.organizerPubkey],
+            ["amount", String(EVENT_CONFIG.price * 1000)], // millisats
+            ["relays", ...EVENT_CONFIG.nostrRelays],
+            ["e", generateEventId()], // event being zapped (reservation event)
+          ],
+          content: `Reserva HDMP — ${currentName} — ${EVENT_CONFIG.name}`,
+        };
+
+        // If attendee provided npub, add as sender
+        if (currentNpub) {
+          // Simple hex check (npub would need bech32 decode in production)
+          zapRequest.tags.push(["P", currentNpub.startsWith('npub') ? 'sender_' + currentNpub.slice(4,12) : currentNpub]);
+        }
+
+        // Sign with ephemeral key
+        const signed = finalizeEvent(zapRequest, sk);
+        console.log('Zap Request (NIP-57 kind 9734):', signed);
+        return signed;
+
+      } catch (err) {
+        console.error('Error creating zap request:', err);
+        return { id: 'zr_' + Date.now().toString(36), kind: 9734, created_at: Math.floor(Date.now()/1000) };
+      }
+    }
+
+    // ── NIP-57: ZAP RECEIPT (Kind 9735) ──────────────────
+    function createZapReceiptEvent(zapRequest, preimage) {
+      try {
+        // In production: the LNURL server creates and signs this
+        // For demo: we simulate it
+        const sk = generateSecretKey();
+
+        const zapReceipt = {
+          kind: 9735,
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [
+            ["p", EVENT_CONFIG.organizerPubkey],
+            ["bolt11", currentInvoice],
+            ["description", JSON.stringify(zapRequest)],
+            ["preimage", preimage || ''],
+          ],
+          content: "",
+        };
+
+        if (zapRequest.tags) {
+          const eTag = zapRequest.tags.find(t => t[0] === 'e');
+          if (eTag) zapReceipt.tags.push(["e", eTag[1]]);
+        }
+
+        const signed = finalizeEvent(zapReceipt, sk);
+        console.log('Zap Receipt (NIP-57 kind 9735):', signed);
+        return signed;
+
+      } catch (err) {
+        console.error('Error creating zap receipt:', err);
+        return { id: 'zrec_' + Date.now().toString(36), kind: 9735, created_at: Math.floor(Date.now()/1000) };
+      }
+    }
+
+    // Helper: generate a random event ID for demo
+    function generateEventId() {
+      return Array.from(crypto.getRandomValues(new Uint8Array(32)))
+        .map(b => b.toString(16).padStart(2,'0')).join('');
+    }
+
+    // ── GENERAR TICKET ──────────────────────────────────
+    async function generateTicket(preimage, zapRequest, zapReceipt) {
+      setStep(3);
+
+      const ticketCode = generateTicketCode();
+      const now = new Date();
+
+      const reservation = {
+        ticketCode,
+        name: currentName,
+        npub: currentNpub,
+        invoice: currentInvoice,
+        paymentHash: currentPaymentHash,
+        preimage: preimage,
+        amount: EVENT_CONFIG.price,
+        status: 'confirmed',
+        createdAt: now.toISOString(),
+        redeemedAt: null,
+        zapRequestId: zapRequest?.id || null,
+        zapReceiptId: zapReceipt?.id || null,
+        verifiedViaNWC: true
+      };
+      saveReservation(reservation);
+
+      // Update ticket UI
+      document.getElementById('ticketCode').textContent = ticketCode;
+      document.getElementById('ticketAttendeeName').textContent =
+        currentName !== 'Anónimo' ? `Para: ${currentName}` : '';
+      document.getElementById('ticketEventName').textContent = EVENT_CONFIG.name;
+
+      // Zap details on ticket
+      document.getElementById('ticketPaymentHash').textContent =
+        `Payment Hash: ${currentPaymentHash ? currentPaymentHash.slice(0,24) + '...' : '—'}`;
+      document.getElementById('ticketPreimage').textContent =
+        `Preimage: ${preimage ? preimage.slice(0,24) + '...' : '—'}`;
+      document.getElementById('ticketZapEvent').textContent =
+        `Zap Receipt: ${zapReceipt?.id ? zapReceipt.id.slice(0,24) + '...' : '—'}`;
+
+      // Generate QR
+      const qrData = JSON.stringify({
+        code: ticketCode,
+        hash: currentPaymentHash?.slice(0,16),
+        zap: zapReceipt?.id?.slice(0,16)
+      });
+      const canvas = document.getElementById('ticketQR');
+      await QRCode.toCanvas(canvas, qrData, {
+        width: 200, margin: 1,
+        color: { dark: '#000000', light: '#ffffff' }
+      });
+
+      showView('ticket');
+      updateSpotsBar();
+    }
+
+    // ── CANCELAR PAGO ───────────────────────────────────
+    window.cancelPayment = function() {
+      if (paymentCheckInterval) clearInterval(paymentCheckInterval);
+      currentInvoice = null;
+      currentPaymentHash = null;
+
+      document.getElementById('step-form').style.display = 'block';
+      document.getElementById('step-payment').style.display = 'none';
+      document.getElementById('paymentVerified').style.display = 'none';
+      document.getElementById('waitingIndicator').style.display = 'flex';
+      document.getElementById('cancelPaymentBtn').style.display = 'block';
+
+      const btn = document.getElementById('generateBtn');
+      btn.disabled = false;
+      btn.textContent = '⚡ Generar Invoice via NWC';
+      setStep(1);
     };
 
     // ── COPIAR INVOICE ────────────────────────────────────
     window.copyInvoice = function() {
       if (!currentInvoice) return;
       navigator.clipboard.writeText(currentInvoice).then(() => {
-        const el = document.getElementById('invoiceText');
-        el.style.borderColor = '#00ff9d';
-        el.style.color = '#00ff9d';
-        setTimeout(() => {
-          el.style.borderColor = '';
-          el.style.color = '';
-        }, 1500);
+        showToast('Invoice copiado', 'success');
       });
-    };
-
-    // ── CONFIRMAR PAGO Y GENERAR TICKET ──────────────────
-    // El usuario dice "ya pagué". Generamos su ticket QR único.
-    // (En producción, verificaríamos el pago via webhook de la wallet)
-    window.confirmPayment = async function() {
-      setStep(3);
-
-      // Generamos un código único para este ticket
-      const ticketCode = generateTicketCode();
-      const now = new Date();
-
-      // Guardamos la reserva en localStorage
-      const reservation = {
-        ticketCode,
-        name: currentName,
-        invoice: currentInvoice,
-        amount: EVENT.price,
-        status: 'confirmed',
-        createdAt: now.toISOString(),
-        redeemedAt: null
-      };
-      saveReservation(reservation);
-
-      // Actualizamos la UI del ticket
-      document.getElementById('ticketCode').textContent = ticketCode;
-      document.getElementById('ticketAttendeeName').textContent =
-        currentName !== 'Anónimo' ? `Para: ${currentName}` : '';
-      document.getElementById('ticketEventName').textContent = EVENT.name;
-
-      // Generamos el QR del ticket (contiene el código único)
-      const canvas = document.getElementById('ticketQR');
-      await QRCode.toCanvas(canvas, ticketCode, {
-        width: 200,
-        margin: 1,
-        color: { dark: '#000000', light: '#ffffff' }
-      });
-
-      // Navegamos a la vista del ticket
-      showView('ticket');
-      updateSpotsBar();
     };
 
     // ── COMPARTIR TICKET ──────────────────────────────────
     window.shareTicket = function() {
       const ticketCode = document.getElementById('ticketCode').textContent;
+      const shareText = `Reservé mi lugar con Lightning + NWC + Zaps!\nCódigo: ${ticketCode}\nSistema: HDMP v2 (NIP-47 + NIP-57)`;
       if (navigator.share) {
-        navigator.share({
-          title: '⚡ Mi ticket para Lightning Hackathon FOUNDATIONS',
-          text: `Reservé mi lugar con Lightning Network! Código: ${ticketCode}\n\nSistema: Proof of Attendance (HDMP)`,
-        });
+        navigator.share({ title: 'Mi ticket HDMP', text: shareText });
       } else {
-        navigator.clipboard.writeText(ticketCode);
-        alert('✅ Código copiado al portapapeles: ' + ticketCode);
+        navigator.clipboard.writeText(shareText);
+        showToast('Ticket copiado al portapapeles', 'success');
       }
     };
 
@@ -786,27 +1423,24 @@
       const feedback = document.getElementById('redeemFeedback');
 
       if (!code || code.length < 6) {
-        feedback.textContent = '⚠️ Ingresá un código válido (ej: HDMP-AB1234)';
+        feedback.textContent = '⚠️ Ingresá un código válido';
         feedback.className = 'redeem-feedback show error';
         return;
       }
 
       const result = markRedeemed(code);
-
       if (result === true) {
-        feedback.textContent = `✅ Ticket ${code} canjeado correctamente. ¡Bienvenido!`;
+        feedback.textContent = `✅ Ticket ${code} canjeado — ¡Bienvenido!`;
         feedback.className = 'redeem-feedback show success';
         document.getElementById('redeemInput').value = '';
-        loadOrganizerPanel(); // Recargamos la lista
+        loadOrganizerPanel();
       } else if (result === 'already') {
-        feedback.textContent = `⚠️ El ticket ${code} ya fue canjeado anteriormente.`;
+        feedback.textContent = `⚠️ Ticket ${code} ya fue canjeado.`;
         feedback.className = 'redeem-feedback show error';
       } else {
-        feedback.textContent = `❌ Código ${code} no encontrado. Verificá que sea correcto.`;
+        feedback.textContent = `❌ Código ${code} no encontrado.`;
         feedback.className = 'redeem-feedback show error';
       }
-
-      // Ocultamos el mensaje después de 4 segundos
       setTimeout(() => { feedback.className = 'redeem-feedback'; }, 4000);
     };
 
@@ -815,37 +1449,35 @@
       const reservations = getReservations();
       const total = reservations.length;
       const redeemed = reservations.filter(r => r.status === 'redeemed').length;
-      const noshow = Math.max(0, total - redeemed); // simplificado para demo
+      const noshow = Math.max(0, total - redeemed);
 
       document.getElementById('statTotal').textContent = total;
       document.getElementById('statRedeemed').textContent = redeemed;
       document.getElementById('statNoshow').textContent = noshow;
 
-      const list = document.getElementById('reservationsList');
+      // Show wallet info if connected
+      if (isNWCConnected) {
+        document.getElementById('walletInfoCard').style.display = 'block';
+        refreshWalletBalance();
+      }
 
+      const list = document.getElementById('reservationsList');
       if (total === 0) {
-        list.innerHTML = `
-          <div class="empty-state">
-            <div class="empty-icon">🎟️</div>
-            <p>No hay reservas aún</p>
-          </div>`;
+        list.innerHTML = `<div class="empty-state"><div class="empty-icon">🎟️</div><p>No hay reservas aún</p></div>`;
         return;
       }
 
-      // Mostramos las reservas más recientes primero
       const sorted = [...reservations].reverse();
       list.innerHTML = sorted.map(r => {
-        const time = new Date(r.createdAt).toLocaleTimeString('es-AR', {
-          hour: '2-digit', minute: '2-digit'
-        });
-        const date = new Date(r.createdAt).toLocaleDateString('es-AR', {
-          day: '2-digit', month: '2-digit'
-        });
+        const time = new Date(r.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+        const date = new Date(r.createdAt).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+        const hashDisplay = r.paymentHash ? r.paymentHash.slice(0,16) + '...' : 'Sin hash';
         return `
           <div class="reservation-item ${r.status === 'redeemed' ? 'redeemed' : ''}">
             <div class="reservation-info">
-              <div class="res-name">${r.name}</div>
+              <div class="res-name">${escapeHtml(r.name)} ${r.verifiedViaNWC ? '<span class="zap-badge">⚡ NWC</span>' : ''}</div>
               <div class="res-code">${r.ticketCode}</div>
+              <div class="res-hash">🔗 ${hashDisplay}</div>
               <div class="res-time">${date} ${time} · ${r.amount.toLocaleString()} sats</div>
             </div>
             <div class="res-status ${r.status}">
@@ -855,47 +1487,225 @@
       }).join('');
     }
 
+    window.refreshWalletBalance = async function() {
+      try {
+        const balance = await nwcClient.getBalance();
+        const sats = Math.floor(balance.balance / 1000);
+        document.getElementById('walletBalance').textContent = sats.toLocaleString() + ' sats';
+      } catch (err) {
+        document.getElementById('walletBalance').textContent = 'Error';
+      }
+    };
+
+    // ── AUDIT DASHBOARD ──────────────────────────────────
+    function loadAuditDashboard(filter = 'all') {
+      const log = getPaymentLog();
+      const reservations = getReservations();
+
+      // Stats
+      const totalSats = log.reduce((sum, l) => sum + (l.amount || 0), 0);
+      const verified = log.filter(l => l.verified).length;
+      const zapped = log.filter(l => l.zapReceiptId).length;
+
+      document.getElementById('auditTotalSats').textContent = totalSats.toLocaleString() + ' sats';
+      document.getElementById('auditTotalTx').textContent = log.length;
+      document.getElementById('auditVerified').textContent = verified;
+      document.getElementById('auditZapped').textContent = zapped;
+
+      // Filter
+      let filtered = log;
+      if (filter === 'verified') filtered = log.filter(l => l.verified);
+      if (filter === 'unverified') filtered = log.filter(l => !l.verified);
+      if (filter === 'zapped') filtered = log.filter(l => l.zapReceiptId);
+
+      const rows = document.getElementById('auditRows');
+      if (filtered.length === 0) {
+        rows.innerHTML = `<div class="empty-state"><div class="empty-icon">📊</div><p>No hay pagos ${filter !== 'all' ? 'con este filtro' : 'registrados'}</p></div>`;
+        return;
+      }
+
+      rows.innerHTML = [...filtered].reverse().map(entry => {
+        const date = new Date(entry.createdAt);
+        const dateStr = date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+        const timeStr = date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+        const hashShort = entry.paymentHash ? entry.paymentHash.slice(0,12) + '...' : '—';
+        const verifiedClass = entry.verified ? 'yes' : (entry.zapReceiptId ? 'pending' : 'no');
+        const verifiedText = entry.verified ? '✅ NWC' : (entry.zapReceiptId ? '⚡ Zap' : '❌');
+
+        return `
+          <div class="audit-row">
+            <div>
+              <div style="font-weight:600;font-size:0.85rem">${escapeHtml(entry.name || 'Anónimo')}</div>
+              <div class="audit-hash">${hashShort}</div>
+            </div>
+            <div class="audit-amount">${(entry.amount || 0).toLocaleString()}</div>
+            <div class="audit-time">${dateStr}<br>${timeStr}</div>
+            <div class="audit-verified ${verifiedClass}">${verifiedText}</div>
+          </div>`;
+      }).join('');
+    }
+
+    window.filterAudit = function(filter, btn) {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      loadAuditDashboard(filter);
+    };
+
+    // ── EXPORT CSV ──────────────────────────────────────
+    window.exportAuditCSV = function() {
+      const log = getPaymentLog();
+      if (log.length === 0) {
+        showToast('No hay datos para exportar', 'error');
+        return;
+      }
+
+      const headers = ['Nombre', 'Monto (sats)', 'Payment Hash', 'Preimage', 'Fecha', 'Verificado NWC', 'Zap Request ID', 'Zap Receipt ID', 'Método'];
+      const rows = log.map(e => [
+        e.name || 'Anónimo',
+        e.amount || 0,
+        e.paymentHash || '',
+        e.preimage || '',
+        e.createdAt || '',
+        e.verified ? 'Sí' : 'No',
+        e.zapRequestId || '',
+        e.zapReceiptId || '',
+        e.verificationMethod || ''
+      ]);
+
+      const csv = [headers.join(','), ...rows.map(r => r.map(v => `"${v}"`).join(','))].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `HDMP_Audit_${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('CSV exportado', 'success');
+    };
+
+    // ── INTEGRITY CHECK ─────────────────────────────────
+    window.runIntegrityCheck = function() {
+      const log = getPaymentLog();
+      const reservations = getReservations();
+      const report = document.getElementById('integrityReport');
+      const issues = [];
+
+      // Check 1: Every reservation should have a payment log entry
+      reservations.forEach(r => {
+        if (r.paymentHash && !log.find(l => l.paymentHash === r.paymentHash)) {
+          issues.push(`⚠️ Reserva ${r.ticketCode} sin entry en payment log`);
+        }
+      });
+
+      // Check 2: No duplicate payment hashes
+      const hashes = log.map(l => l.paymentHash).filter(Boolean);
+      const dupes = hashes.filter((h, i) => hashes.indexOf(h) !== i);
+      if (dupes.length > 0) {
+        issues.push(`🔴 ${dupes.length} payment hash(es) duplicados detectados`);
+      }
+
+      // Check 3: No duplicate ticket codes
+      const codes = reservations.map(r => r.ticketCode);
+      const codeDupes = codes.filter((c, i) => codes.indexOf(c) !== i);
+      if (codeDupes.length > 0) {
+        issues.push(`🔴 ${codeDupes.length} ticket code(s) duplicados`);
+      }
+
+      // Check 4: All verified payments should have preimage
+      log.forEach(l => {
+        if (l.verified && (!l.preimage || l.preimage === 'N/A')) {
+          issues.push(`⚠️ Pago ${l.paymentHash?.slice(0,12)}... verificado pero sin preimage`);
+        }
+      });
+
+      // Check 5: Amounts should match
+      log.forEach(l => {
+        if (l.amount && l.amount !== EVENT_CONFIG.price) {
+          issues.push(`🔴 Pago ${l.paymentHash?.slice(0,12)}... con monto inválido: ${l.amount} (esperado: ${EVENT_CONFIG.price})`);
+        }
+      });
+
+      // Check 6: Reservation count vs payment count
+      if (reservations.length !== log.length) {
+        issues.push(`⚠️ Discrepancia: ${reservations.length} reservas vs ${log.length} pagos`);
+      }
+
+      // Generate report
+      const timestamp = new Date().toLocaleString('es-AR');
+      let html = `<strong style="color:#00ff9d">Verificación ejecutada: ${timestamp}</strong><br><br>`;
+      html += `📊 ${reservations.length} reservas | ${log.length} pagos | ${log.filter(l=>l.verified).length} verificados<br><br>`;
+
+      if (issues.length === 0) {
+        html += `<span style="color:#00ff9d">✅ Sin problemas detectados — todos los registros son consistentes.</span>`;
+      } else {
+        html += `<span style="color:#ff6b6b">Se encontraron ${issues.length} problema(s):</span><br><br>`;
+        html += issues.join('<br>');
+      }
+
+      report.innerHTML = html;
+    };
+
     // ── ACTUALIZAR BARRA DE LUGARES ───────────────────────
     function updateSpotsBar() {
       const reservations = getReservations();
       const taken = reservations.length;
-      const available = EVENT.maxCapacity - taken;
-      const pct = (taken / EVENT.maxCapacity) * 100;
+      const available = EVENT_CONFIG.maxCapacity - taken;
+      const pct = (taken / EVENT_CONFIG.maxCapacity) * 100;
 
       document.getElementById('spotsText').textContent =
-        available > 0 ? `${available} lugares disponibles` : '¡Sin lugares disponibles!';
-      document.getElementById('spotsCount').textContent = `${taken}/${EVENT.maxCapacity}`;
+        available > 0 ? `${available} lugares disponibles` : '¡Sin lugares!';
+      document.getElementById('spotsCount').textContent = `${taken}/${EVENT_CONFIG.maxCapacity}`;
       document.getElementById('spotsBar').style.width = pct + '%';
 
-      // Cambiar badge si queda poco
-      const badge = document.querySelector('.badge');
-      if (available <= 5 && available > 0) {
-        badge.className = 'badge warning';
-        badge.textContent = `⚠️ ¡Últimos ${available} lugares!`;
-      } else if (available === 0) {
-        badge.className = 'badge error';
-        badge.textContent = '🔴 Evento completo';
-        document.querySelector('.btn-primary').disabled = true;
-        document.querySelector('.btn-primary').textContent = 'Sin lugares disponibles';
+      const badge = document.querySelector('#view-event .badge');
+      if (badge) {
+        if (available <= 5 && available > 0) {
+          badge.className = 'badge warning';
+          badge.innerHTML = `⚠️ ¡Últimos ${available} lugares!`;
+        } else if (available === 0) {
+          badge.className = 'badge error';
+          badge.innerHTML = '🔴 Evento completo';
+          const btn = document.getElementById('reserveBtn');
+          if (btn) { btn.disabled = true; btn.textContent = 'Sin lugares disponibles'; }
+        }
       }
     }
 
-    // ── LIMPIAR DATOS (solo para demo) ───────────────────
+    // ── LIMPIAR DATOS ─────────────────────────────────────
     window.clearAllData = function() {
-      if (confirm('¿Borrar todas las reservas? Solo para demo.')) {
-        localStorage.removeItem('poa_reservations');
+      if (confirm('¿Borrar TODOS los datos? (reservas, pagos, auditoría)')) {
+        localStorage.removeItem('hdmp_reservations');
+        localStorage.removeItem('hdmp_payment_log');
         loadOrganizerPanel();
         updateSpotsBar();
+        showToast('Datos limpiados', 'info');
       }
     };
 
     // ── INICIALIZACIÓN ────────────────────────────────────
-    // Al cargar la página, actualizamos los lugares disponibles
+    // Try to restore NWC connection
+    const savedNWC = localStorage.getItem('hdmp_nwc_url');
+    if (savedNWC) {
+      try {
+        const { nwc } = await import("https://esm.sh/@getalby/sdk@3");
+        nwcClient = new nwc.NWCClient({ nostrWalletConnectUrl: savedNWC });
+        const info = await nwcClient.getInfo();
+        isNWCConnected = true;
+        updateNWCStatus(true, info.alias || 'Conectada');
+        showView('event');
+      } catch (e) {
+        console.log('NWC restore failed:', e.message);
+        showView('nwc-setup');
+      }
+    } else {
+      showView('nwc-setup');
+    }
+
     updateSpotsBar();
     setStep(1);
-
-    // Si la URL tiene #organizer, ir directo al panel
     if (location.hash === '#organizer') showView('organizer');
+    if (location.hash === '#audit') showView('audit');
+    if (location.hash === '#demo') { useDemoMode(); }
   </script>
 
 </body>

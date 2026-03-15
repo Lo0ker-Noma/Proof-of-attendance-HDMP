@@ -1,12 +1,15 @@
 {
   "name": "lightning-starter",
-  "version": "1.0.0",
-  "description": "Starter kit para Lightning Hackathons 2026 - La Crypta",
+  "version": "2.0.0",
+  "description": "HDMP v2 — Proof of Attendance con NWC (NIP-47) + Zaps (NIP-57)",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "test": "node tests/unit-tests.js",
+    "test:security": "node tests/security-pentest.js",
+    "test:all": "node tests/unit-tests.js && node tests/security-pentest.js",
     "example:invoice": "node src/examples/create-invoice.js",
     "example:pay": "node src/examples/pay-invoice.js",
     "example:nwc": "node src/examples/nwc-connect.js",
