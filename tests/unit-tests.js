@@ -31,6 +31,8 @@ function getReservations() {
 function saveReservation(reservation) {
   const reservations = getReservations();
   if (reservations.find(r => r.ticketCode === reservation.ticketCode)) return;
+  // Prevent duplicate paymentHash (double-spend prevention)
+  if (reservation.paymentHash && reservations.find(r => r.paymentHash === reservation.paymentHash)) return;
   reservations.push(reservation);
   localStorage.setItem('hdmp_reservations', JSON.stringify(reservations));
 }
@@ -76,7 +78,13 @@ function isValidInvoice(invoice) {
 
 function sanitizeInput(input) {
   if (typeof input !== 'string') return '';
-  return input.replace(/[<>"'&]/g, '').trim().slice(0, 100);
+  return input
+    .replace(/[<>"'&]/g, '')
+    .replace(/[\x00-\x1F\x7F]/g, '')
+    .replace(/[\u200B\u200C\u200D\u200E\u200F\uFEFF\u2028\u2029]/g, '')
+    .normalize('NFKC')
+    .trim()
+    .slice(0, 100);
 }
 
 // ── TEST FRAMEWORK ───────────────────────────────────
@@ -461,6 +469,83 @@ test('Detects verified payments without preimage', () => {
   const issues = log.filter(l => l.verified && (!l.preimage || l.preimage === 'N/A'));
   assertEqual(issues.length, 2);
 });
+
+// ── SECURITY HARDENING (v2.2 Fixes) ─────────────────
+console.log("\n🔒 Security Hardening v2.2");
+
+test('sanitizeInput strips null bytes', () => {
+  const result = sanitizeInput('Hello\x00World');
+  assert(!result.includes('\x00'), 'Should not contain null bytes');
+  assertEqual(result, 'HelloWorld');
+});
+
+test('sanitizeInput strips zero-width characters', () => {
+  const result = sanitizeInput('Hello\u200BWorld\u200C\u200D\uFEFF');
+  assertEqual(result, 'HelloWorld');
+});
+
+test('sanitizeInput strips control characters', () => {
+  const result = sanitizeInput('Hello\x01\x02\x03World\x1F');
+  assertEqual(result, 'HelloWorld');
+});
+
+test('sanitizeInput normalizes unicode (NFKC)', () => {
+  // ﬀ (U+FB00 LATIN SMALL LIGATURE FF) should normalize to "ff"
+  const result = sanitizeInput('\uFB00');
+  assertEqual(result, 'ff');
+});
+
+test('saveReservation blocks duplicate paymentHash (double-spend)', () => {
+  const hash = 'a'.repeat(64);
+  saveReservation({ ticketCode: 'HDMP-AAA111', paymentHash: hash, name: 'First', amount: 1000, status: 'confirmed' });
+  saveReservation({ ticketCode: 'HDMP-BBB222', paymentHash: hash, name: 'DoubleSpend', amount: 1000, status: 'confirmed' });
+  const r = getReservations();
+  assertEqual(r.length, 1, 'Should block second reservation with same paymentHash');
+  assertEqual(r[0].name, 'First');
+});
+
+test('addPaymentLog blocks duplicate paymentHash', () => {
+  const hash = 'f'.repeat(64);
+  addPaymentLog({ paymentHash: hash, amount: 1000, name: 'First' });
+  addPaymentLog({ paymentHash: hash, amount: 1000, name: 'Duplicate' });
+  const log = getPaymentLog();
+  assertEqual(log.length, 1);
+});
+
+test('markRedeemed rejects invalid ticket code format', () => {
+  saveReservation({ ticketCode: 'HDMP-ABC234', name: 'Test', amount: 1000, status: 'confirmed' });
+  // Try with script injection in ticket code
+  const result = markRedeemed('<script>alert(1)</script>');
+  assertEqual(result, false, 'Should reject invalid format');
+});
+
+test('markRedeemed validates strict ticket code regex', () => {
+  // lowercase should fail
+  assertEqual(markRedeemed('hdmp-abc234'), false);
+  // Wrong prefix
+  assertEqual(markRedeemed('XXXX-ABC234'), false);
+  // SQL injection attempt
+  assertEqual(markRedeemed("HDMP-'; DROP"), false);
+});
+
+test('escapeHtml prevents XSS in display', () => {
+  const escaped = escapeHtml('<img onerror=alert(1) src=x>');
+  assert(!escaped.includes('<img'), 'Should escape HTML tags');
+  assert(escaped.includes('&lt;'), 'Should contain escaped entities');
+});
+
+test('escapeHtml handles non-string input safely', () => {
+  assertEqual(escapeHtml(null), '');
+  assertEqual(escapeHtml(undefined), '');
+  assertEqual(escapeHtml(42), '');
+});
+
+function escapeHtml(str) {
+  if (typeof str !== 'string') return '';
+  const div = { textContent: '', get innerHTML() { return this.textContent.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); } };
+  div.textContent = str;
+  return div.innerHTML;
+}
 
 // ═══════════════════════════════════════════════════════
 // RESULTS

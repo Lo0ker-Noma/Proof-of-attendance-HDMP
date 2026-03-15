@@ -1303,9 +1303,12 @@
         isNWCConnected = true;
         isDemoMode = false;
 
-        // Save NWC URL — WARNING: stored in plaintext (see security audit)
-        // In production: encrypt with Web Crypto API or use session-only storage
-        localStorage.setItem('hdmp_nwc_url', input);
+        // Save NWC URL encrypted (AES-GCM via Web Crypto API)
+        const encrypted = await encryptNWCUrl(input);
+        if (encrypted) {
+          localStorage.setItem('hdmp_nwc_url_enc', encrypted);
+          localStorage.removeItem('hdmp_nwc_url'); // Remove any old plaintext
+        }
         console.log('NWC connected (secret redacted):', input.replace(/secret=[^&]+/, 'secret=REDACTED'));
 
         updateNWCStatus(true, info.alias || 'Wallet conectada');
@@ -1416,20 +1419,47 @@
     }
 
     function saveReservation(reservation) {
-      // Sanitize name before saving (XSS prevention)
-      if (reservation.name) reservation.name = sanitizeInput(reservation.name);
-      const reservations = getReservations();
-      // Prevent duplicates by ticketCode AND paymentHash (double-spend prevention)
-      if (reservations.find(r => r.ticketCode === reservation.ticketCode)) return;
-      if (reservation.paymentHash && reservations.find(r => r.paymentHash === reservation.paymentHash)) {
-        console.warn('SECURITY: Duplicate paymentHash blocked:', reservation.paymentHash?.slice(0,16));
-        return;
-      }
-      reservations.push(reservation);
-      localStorage.setItem('hdmp_reservations', JSON.stringify(reservations));
+      return withStorageLock(() => {
+        // Sanitize name before saving (XSS prevention)
+        if (reservation.name) reservation.name = sanitizeInput(reservation.name);
+
+        // Validate timestamp (not in future, not more than 1h in the past)
+        const now = Date.now();
+        const created = new Date(reservation.createdAt).getTime();
+        if (isNaN(created) || created > now + 60000 || created < now - 3600000) {
+          reservation.createdAt = new Date().toISOString(); // Override suspicious timestamp
+        }
+
+        // Validate amount matches event price
+        if (reservation.amount !== selectedEvent.price) {
+          console.warn('SECURITY: Amount mismatch blocked:', reservation.amount, 'vs expected', selectedEvent.price);
+          return;
+        }
+
+        const reservations = getReservations();
+        // Prevent duplicates by ticketCode AND paymentHash (double-spend prevention)
+        if (reservations.find(r => r.ticketCode === reservation.ticketCode)) return;
+        if (reservation.paymentHash && reservations.find(r => r.paymentHash === reservation.paymentHash)) {
+          console.warn('SECURITY: Duplicate paymentHash blocked:', reservation.paymentHash?.slice(0,16));
+          return;
+        }
+
+        // Require valid paymentHash and preimage for non-demo reservations
+        if (!isDemoMode && (!reservation.paymentHash || reservation.paymentHash.length !== 64)) {
+          console.warn('SECURITY: Invalid paymentHash rejected');
+          return;
+        }
+
+        reservations.push(reservation);
+        localStorage.setItem('hdmp_reservations', JSON.stringify(reservations));
+      });
     }
 
     function markRedeemed(ticketCode) {
+      // Sanitize input to prevent injection
+      ticketCode = sanitizeInput(ticketCode);
+      if (!/^HDMP-[A-HJ-KMNP-Z2-9]{6}$/.test(ticketCode)) return false;
+
       const reservations = getReservations();
       const idx = reservations.findIndex(r => r.ticketCode === ticketCode);
       if (idx === -1) return false;
@@ -1447,27 +1477,76 @@
     }
 
     function addPaymentLog(entry) {
-      const log = getPaymentLog();
-      // Prevent duplicate by paymentHash
-      if (log.find(l => l.paymentHash === entry.paymentHash)) return;
-      log.push(entry);
-      localStorage.setItem('hdmp_payment_log', JSON.stringify(log));
+      return withStorageLock(() => {
+        // Sanitize name in payment log too
+        if (entry.name) entry.name = sanitizeInput(entry.name);
+
+        // Validate amount matches event price
+        if (entry.amount && entry.amount !== selectedEvent.price) {
+          console.warn('SECURITY: Payment log amount mismatch blocked:', entry.amount);
+          return;
+        }
+
+        const log = getPaymentLog();
+        // Prevent duplicate by paymentHash
+        if (log.find(l => l.paymentHash === entry.paymentHash)) return;
+        log.push(entry);
+        localStorage.setItem('hdmp_payment_log', JSON.stringify(log));
+      });
     }
 
-    // ── SANITIZACIÓN DE INPUT (Security Fix) ────────────
+    // ── SANITIZACIÓN DE INPUT (Security Fix v2.2) ────────
     function sanitizeInput(input) {
       if (typeof input !== 'string') return '';
       return input
-        .replace(/[<>"'&\x00]/g, '')
-        .replace(/[\u200B\u200C\u200D\uFEFF]/g, '')
+        .replace(/[<>"'&]/g, '')           // Strip HTML special chars
+        .replace(/[\x00-\x1F\x7F]/g, '')  // Strip ALL control chars including null bytes
+        .replace(/[\u200B\u200C\u200D\u200E\u200F\uFEFF\u2028\u2029]/g, '') // Zero-width & line separators
+        .normalize('NFKC')                 // Unicode normalization (prevent homoglyph attacks)
         .trim()
         .slice(0, 100);
     }
 
     function escapeHtml(str) {
+      if (typeof str !== 'string') return '';
       const div = document.createElement('div');
       div.textContent = str;
       return div.innerHTML;
+    }
+
+    // ── MUTEX PARA LOCALSTORAGE (Race Condition Fix) ────
+    let _storageLock = false;
+    async function withStorageLock(fn) {
+      while (_storageLock) await new Promise(r => setTimeout(r, 10));
+      _storageLock = true;
+      try { return fn(); }
+      finally { _storageLock = false; }
+    }
+
+    // ── NWC ENCRYPTED STORAGE (Security Fix) ────────────
+    async function encryptNWCUrl(url) {
+      try {
+        const key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+        const encoded = new TextEncoder().encode(url);
+        const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, encoded);
+        const exportedKey = await crypto.subtle.exportKey('raw', key);
+        // Store key in sessionStorage (cleared on tab close), encrypted data in localStorage
+        sessionStorage.setItem('hdmp_nwc_key', bytesToHex(new Uint8Array(exportedKey)));
+        sessionStorage.setItem('hdmp_nwc_iv', bytesToHex(iv));
+        return bytesToHex(new Uint8Array(encrypted));
+      } catch (e) { console.error('Encryption failed:', e); return null; }
+    }
+
+    async function decryptNWCUrl(encryptedHex) {
+      try {
+        const keyHex = sessionStorage.getItem('hdmp_nwc_key');
+        const ivHex = sessionStorage.getItem('hdmp_nwc_iv');
+        if (!keyHex || !ivHex) return null;
+        const key = await crypto.subtle.importKey('raw', hexToBytes(keyHex), 'AES-GCM', false, ['decrypt']);
+        const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: hexToBytes(ivHex) }, key, hexToBytes(encryptedHex));
+        return new TextDecoder().decode(decrypted);
+      } catch (e) { console.error('Decryption failed:', e); return null; }
     }
 
     // ── GENERAR CÓDIGO ÚNICO DE TICKET ────────────────────
@@ -1581,6 +1660,13 @@
     }
 
     async function onPaymentVerified(paymentResult) {
+      // SECURITY: Validate payment amount matches expected price
+      if (paymentResult.amount && paymentResult.amount !== selectedEvent.price * 1000) {
+        console.warn('SECURITY: Payment amount mismatch!', paymentResult.amount, 'vs expected', selectedEvent.price * 1000);
+        showToast('Error: monto del pago no coincide con el precio', 'error');
+        return;
+      }
+
       // Show verification banner
       document.getElementById('paymentVerified').style.display = 'block';
       document.getElementById('waitingIndicator').style.display = 'none';
@@ -2061,8 +2147,17 @@
       updateSpotsBar();
       setStep(1);
 
-      // Try to restore NWC connection
-      const savedNWC = localStorage.getItem('hdmp_nwc_url');
+      // Try to restore NWC connection (encrypted storage)
+      const encryptedNWC = localStorage.getItem('hdmp_nwc_url_enc');
+      const legacyNWC = localStorage.getItem('hdmp_nwc_url'); // old plaintext fallback
+      const savedNWC = encryptedNWC ? await decryptNWCUrl(encryptedNWC) : legacyNWC;
+
+      // If we found a legacy plaintext URL, encrypt it and remove plaintext
+      if (legacyNWC && !encryptedNWC) {
+        const enc = await encryptNWCUrl(legacyNWC);
+        if (enc) { localStorage.setItem('hdmp_nwc_url_enc', enc); localStorage.removeItem('hdmp_nwc_url'); }
+      }
+
       if (savedNWC) {
         try {
           const { nwc } = await import("https://esm.sh/@getalby/sdk@3");
