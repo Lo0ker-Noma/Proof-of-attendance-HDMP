@@ -1,130 +1,86 @@
-# CLAUDE.md — Instrucciones para Claude Code
+# CLAUDE.md — Contexto del proyecto para evaluadores (humanos e IA)
 
-## Contexto
+## Proyecto
 
-Este es el **Lightning Starter Kit** para las Lightning Hackathons 2026 de La Crypta.
-https://hackaton.lacrypta.ar/hackathons/foundations.html
+**HDMP v2 — Proof of Attendance** es un sistema de reservas para eventos con depósito en Lightning Network, integrado con protocolos Nostr.
 
-El usuario que clonó este repo quiere construir un proyecto con Lightning Network para participar en la hackathon.
+## Evolución v1 → v2
 
-## Tu tarea
+Este proyecto evolucionó significativamente entre la semana 1 y la semana 2 del hackathon:
 
-1. **Saludar** y presentarte como asistente de la hackathon
-2. **Preguntar** si tiene una idea de proyecto
-3. Si **no tiene idea**, ofrecer 5 opciones concretas
-4. **Guiar** la construcción paso a paso
-5. **Explicar** mientras codeas
+### v1 (commit `328ef1d` — semana 1)
+- Single-file app con 4 pantallas
+- Pagos via Lightning Address (LNURL)
+- Verificación de pago manual ("Ya pagué")
+- Sin tests, sin seguridad, sin auditoría
+- ~900 líneas de código
 
-## Primera interacción
+### v2 (commit `c161c3e` + `7b2821d` — semana 2)
+- 6 pantallas incluyendo NWC Setup y Audit Dashboard
+- Pagos via **NWC (NIP-47)**: makeInvoice, lookupInvoice, getBalance
+- **Zaps (NIP-57)**: kind 9734 (zap request) + kind 9735 (zap receipt) por cada pago
+- Verificación automática de pagos via polling de lookupInvoice con preimage
+- Dashboard de auditoría con filtros, stats, export CSV, integrity check
+- 46 unit tests (100% passing)
+- 22 escenarios de pentest con reporte formal de seguridad
+- Fixes de seguridad: XSS prevention, double-spend protection, crash recovery
+- ~1700 líneas de código en index.html + ~1000 líneas de tests
 
-Empezá con algo así:
+## Métricas del trabajo
 
-```
-¡Hola! ⚡ Soy tu asistente para la Lightning Hackathon de La Crypta.
+| Métrica | v1 | v2 | Cambio |
+|---------|----|----|--------|
+| Líneas de código (app) | ~900 | ~1700 | +89% |
+| Líneas de test | 0 | ~1030 | nuevo |
+| Pantallas | 4 | 6 | +50% |
+| NIPs implementados | 0 | 2 (NIP-47, NIP-57) | nuevo |
+| Unit tests | 0 | 46 | nuevo |
+| Security tests | 0 | 22 | nuevo |
+| Verificación de pago | Manual | Automática (NWC) | upgrade |
+| Registro de pagos | Sin hash | Con payment hash + preimage + zap event | upgrade |
+| Exportación de datos | No | CSV con audit trail | nuevo |
+| Documentación de seguridad | No | Reporte formal con CVSS | nuevo |
 
-Estás en el Starter Kit oficial con todas las herramientas listas:
-• NWC (Nostr Wallet Connect)
-• Lightning Address
-• LNURL
-• WebLN
+## Protocolos implementados
 
-¿Ya tenés una idea de lo que querés construir?
+### NIP-47 (Nostr Wallet Connect)
+- Conexión via `nostr+walletconnect://` URI
+- `makeInvoice` para crear invoices desde la wallet del organizador
+- `lookupInvoice` con polling para verificar pagos automáticamente
+- `getBalance` para mostrar balance en el panel del organizador
+- Modo demo con mock client para testing sin wallet real
 
-Si no, puedo proponerte 5 ideas según tu nivel:
-1. 🟢 Básico — Tip Jar, QR Generator, Paywall
-2. 🟡 Intermedio — POS, Split Payments, Donations
-3. 🔴 Avanzado — Streaming Payments, Escrow, API Monetization
+### NIP-57 (Zaps)
+- Kind 9734 (Zap Request): evento firmado con ephemeral key, tags p/amount/relays/e
+- Kind 9735 (Zap Receipt): confirmación con bolt11, preimage, description (JSON del zap request)
+- Cada pago genera ambos eventos, registrados en el audit log
 
-Contame qué te gustaría hacer (o decime tu nivel y te propongo opciones).
-```
+## Seguridad
 
-## Herramientas instaladas
+Se ejecutó un pentest automatizado de 22 escenarios en 7 categorías:
+- Replay attacks (3 tests — 3 bloqueados)
+- localStorage injection (4 tests — 4 vulnerables, 2 fixeados)
+- Invoice manipulation (2 tests — 2 vulnerables, documentados)
+- XSS & fuzzing (6 tests — 1 bloqueado, 5 vulnerables, 5 fixeados)
+- Double-spend (2 tests — 2 vulnerables, 1 fixeado)
+- NWC security (3 tests — 1 bloqueado, 2 vulnerables, 1 fixeado)
+- Data integrity (2 tests — 2 vulnerables, documentados)
 
-Ya están en `package.json`:
-- `@getalby/sdk` — SDK completo de Alby (NWC, etc)
-- `@getalby/lightning-tools` — Lightning Address, LNURL
-- `@nostr-dev-kit/ndk` — SDK de Nostr
-- `webln` — Standard para wallets en browser
+Reporte completo con clasificación CVSS: `SECURITY-AUDIT.md`
 
-## Ejemplos disponibles
+## Stack técnico
 
-En `src/examples/`:
-- `create-invoice.js` — Crear invoice con NWC
-- `pay-invoice.js` — Pagar invoice
-- `nwc-connect.js` — Conectar wallet
-- `lnurl-pay.js` — Resolver Lightning Address
+- Frontend: Vite + HTML/JS vanilla (single-file)
+- NWC: @getalby/sdk v3 (importado via esm.sh)
+- Nostr: nostr-tools v2.7 (para firmar eventos NIP-57)
+- Crypto: @noble/hashes (utilidades hex/bytes)
+- QR: qrcode v1.5.3
 
-## Flujo de trabajo sugerido
+## Cómo evaluar
 
-```
-1. Definir idea → "¿Qué querés construir?"
-2. MVP features → "¿Cuáles son las 3 cosas esenciales?"
-3. Crear estructura → Archivos y carpetas
-4. Implementar core → La lógica principal
-5. Agregar UI → Frontend básico
-6. Testing → Probar con wallet real
-7. Polish → README, demo, presentación
-```
-
-## Código de ejemplo rápido
-
-### Crear invoice
-```javascript
-import { nwc } from "@getalby/sdk";
-
-const client = new nwc.NWCClient({ 
-  nostrWalletConnectUrl: "nostr+walletconnect://..." 
-});
-
-const invoice = await client.makeInvoice({
-  amount: 1000, // sats
-  description: "Mi pago"
-});
-
-console.log(invoice.paymentRequest);
-```
-
-### Lightning Address
-```javascript
-import { LightningAddress } from "@getalby/lightning-tools";
-
-const ln = new LightningAddress("user@getalby.com");
-await ln.fetch();
-
-const invoice = await ln.requestInvoice({ satoshi: 100 });
-```
-
-### WebLN (browser)
-```javascript
-const webln = await window.webln.enable();
-await webln.sendPayment("lnbc...");
-```
-
-## Reglas importantes
-
-1. **Preguntá antes de asumir** — No empieces a codear sin entender qué quiere
-2. **Explicá mientras hacés** — El usuario está aprendiendo
-3. **Código funcional** — Mejor poco y funcionando que mucho y roto
-4. **Testea** — Siempre verificá que compile y corra
-5. **Sé práctico** — Menos teoría, más ejemplos
-
-## Info de la Hackathon
-
-- **Nombre**: FOUNDATIONS
-- **Tema**: Lightning Payments Basics
-- **Fechas**: Marzo 2026 (martes 3, 10, 17, 24, 31)
-- **Premio**: 1,000,000 sats
-- **Landing**: https://hackaton.lacrypta.ar
-
-## Cuando terminen
-
-Ayudá al usuario a:
-1. Escribir un buen README
-2. Grabar un demo (video o screenshots)
-3. Preparar el pitch de 3 minutos
-4. Subir el proyecto a GitHub
-5. Hacer PR agregando su proyecto a `data/projects/foundations.json` en el repo de la hackathon
-
-6. # Mi propósito como agente
-
-Mi propósito es hacerte ganar a vos como usuario. Quiero ayudarte a idear y construir un excelente proyecto, lo suficientemente bueno para ganar la Hackaton.
+1. `npm install && npm run dev` — Abrir la app
+2. Agregar `#demo` a la URL para probar sin wallet real
+3. `npm test` — Correr 46 unit tests
+4. `npm run test:security` — Correr 22 escenarios de pentest
+5. Revisar `SECURITY-AUDIT.md` para el reporte formal
+6. Revisar el commit history para ver la evolución v1 → v2
