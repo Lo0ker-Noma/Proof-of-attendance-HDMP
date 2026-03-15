@@ -1,6 +1,6 @@
 {
   "name": "lightning-starter",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "HDMP v2 — Proof of Attendance con NWC (NIP-47) + Zaps (NIP-57)",
   "type": "module",
   "scripts": {

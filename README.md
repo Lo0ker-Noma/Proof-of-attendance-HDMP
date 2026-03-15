@@ -1,8 +1,10 @@
-# ⚡ Proof of Attendance (HDMP) — v2
+# ⚡ Proof of Attendance (HDMP) — v2.1
 
-> De un MVP con verificación manual a un sistema completo con **Nostr Wallet Connect (NIP-47)**, **Zaps (NIP-57)**, auditoría criptográfica y pentest de seguridad.
+> De un MVP con verificación manual a un sistema multi-evento con **Nostr Wallet Connect (NIP-47)**, **Zaps (NIP-57)**, auditoría criptográfica, pentest de seguridad y diseño premium.
 
 **Construido para la Lightning Hackathon FOUNDATIONS 2026 de La Crypta.**
+
+**Live demo**: [proof-of-attendance-hdmp.vercel.app](https://proof-of-attendance-hdmp.vercel.app/#demo)
 
 ---
 

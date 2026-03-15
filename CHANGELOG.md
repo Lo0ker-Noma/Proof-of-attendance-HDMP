@@ -1,5 +1,32 @@
 # Changelog — HDMP Proof of Attendance
 
+## [2.1.0] — 2026-03-15 — Multi-Event + Visual Refresh
+
+### Added
+- **Multi-event system**: soporte para múltiples eventos con selector visual
+  - 4 eventos Cowork de La Crypta (Mar 17, 24, 31 y Abr 7)
+  - Event cards con date badges, hover effects y estado seleccionado
+  - Detalle dinámico del evento al seleccionar (fecha, hora, ubicación, capacidad)
+  - Ticket y factura vinculados al evento seleccionado
+- **La Crypta branding**: logo oficial (GitHub avatar), "La Crypta presenta" header
+- **Dirección real**: Villanueva 1367 — La Crypta, Buenos Aires
+
+### Changed
+- Título principal: "Proof of Attendance (HDMP)" (antes "Lightning Hackathon FOUNDATIONS")
+- Layout: detalle del evento + botón reservar arriba, lista de eventos debajo
+- **Visual refresh completo**:
+  - Fuentes Inter + JetBrains Mono (Google Fonts)
+  - CSS custom properties (design tokens) para theming consistente
+  - Paleta refinada: gold (#f7931a, Bitcoin orange), purple, green
+  - Glass morphism con backdrop-filter en header y cards
+  - Background con gradientes radiales ambient (purple/gold)
+  - Animaciones: glow en rayo, fade-in en vistas, shimmer en ticket, pulse en status
+  - Hover states mejorados en cards, botones y links
+  - Focus ring con glow dorado en inputs
+  - Protocol badges (NIP-47/NIP-57) con background coloreado
+
+---
+
 ## [2.0.0] — 2026-03-15 — NWC + Zaps + Security Audit
 
 ### Added
