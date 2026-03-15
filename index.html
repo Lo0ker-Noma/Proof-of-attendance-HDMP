@@ -1683,29 +1683,33 @@
     };
 
     // ── INICIALIZACIÓN ────────────────────────────────────
-    // Try to restore NWC connection
-    const savedNWC = localStorage.getItem('hdmp_nwc_url');
-    if (savedNWC) {
-      try {
-        const { nwc } = await import("https://esm.sh/@getalby/sdk@3");
-        nwcClient = new nwc.NWCClient({ nostrWalletConnectUrl: savedNWC });
-        const info = await nwcClient.getInfo();
-        isNWCConnected = true;
-        updateNWCStatus(true, info.alias || 'Conectada');
-        showView('event');
-      } catch (e) {
-        console.log('NWC restore failed:', e.message);
+    // Wrapped in async IIFE to avoid top-level await (Vite/esbuild compatibility)
+    (async function init() {
+      updateSpotsBar();
+      setStep(1);
+
+      // Try to restore NWC connection
+      const savedNWC = localStorage.getItem('hdmp_nwc_url');
+      if (savedNWC) {
+        try {
+          const { nwc } = await import("https://esm.sh/@getalby/sdk@3");
+          nwcClient = new nwc.NWCClient({ nostrWalletConnectUrl: savedNWC });
+          const info = await nwcClient.getInfo();
+          isNWCConnected = true;
+          updateNWCStatus(true, info.alias || 'Conectada');
+          showView('event');
+        } catch (e) {
+          console.log('NWC restore failed:', e.message);
+          showView('nwc-setup');
+        }
+      } else {
         showView('nwc-setup');
       }
-    } else {
-      showView('nwc-setup');
-    }
 
-    updateSpotsBar();
-    setStep(1);
-    if (location.hash === '#organizer') showView('organizer');
-    if (location.hash === '#audit') showView('audit');
-    if (location.hash === '#demo') { useDemoMode(); }
+      if (location.hash === '#organizer') showView('organizer');
+      if (location.hash === '#audit') showView('audit');
+      if (location.hash === '#demo') { useDemoMode(); }
+    })();
   </script>
 
 </body>
