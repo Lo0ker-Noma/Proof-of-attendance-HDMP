@@ -703,6 +703,38 @@
     .nip-badge.nwc { color: #c4b5fd; background: rgba(139,92,246,0.1); }
     .nip-badge.zap { color: var(--gold-light); background: rgba(247,147,26,0.1); }
 
+    /* ── EVENT LIST CARDS ── */
+    .event-list-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 16px 18px;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .event-list-card:hover { border-color: rgba(255,255,255,0.15); background: rgba(255,255,255,0.04); }
+    .event-list-card.selected { border-color: var(--gold); background: rgba(247,147,26,0.06); box-shadow: 0 0 16px rgba(247,147,26,0.08); }
+    .event-list-card .elc-left { display: flex; align-items: center; gap: 14px; }
+    .event-list-card .elc-date {
+      background: rgba(139,92,246,0.12);
+      border: 1px solid rgba(139,92,246,0.2);
+      border-radius: 10px;
+      padding: 8px 12px;
+      text-align: center;
+      min-width: 56px;
+    }
+    .event-list-card .elc-date .day { font-size: 1.1rem; font-weight: 800; color: #fff; line-height: 1; }
+    .event-list-card .elc-date .month { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+    .event-list-card .elc-info .elc-name { font-size: 0.88rem; font-weight: 600; margin-bottom: 2px; }
+    .event-list-card .elc-info .elc-time { font-size: 0.78rem; color: var(--text-muted); font-weight: 400; }
+    .event-list-card .elc-price { font-size: 0.82rem; font-weight: 700; color: var(--gold); white-space: nowrap; }
+    .event-list-card .elc-arrow { color: var(--text-dim); font-size: 1rem; transition: transform 0.2s; }
+    .event-list-card:hover .elc-arrow { transform: translateX(3px); }
+    .event-list-card.selected .elc-arrow { color: var(--gold); }
+
     @media (max-width: 480px) {
       .view { padding: 20px 16px; }
       .event-title { font-size: 1.4rem; }
@@ -773,56 +805,76 @@
        VISTA 1: EVENTO
   ════════════════════════════════════════ -->
   <div id="view-event" class="view">
-    <div class="badge live">🟢 Plazas disponibles</div>
-
-    <div class="card">
-      <div class="event-emoji">⚡</div>
-      <div class="event-title">Lightning Hackathon FOUNDATIONS</div>
-      <div class="event-subtitle">La Crypta × Lightning Network 2026</div>
-
-      <ul class="event-info">
-        <li><span class="icon">📅</span> Martes 10 de Marzo, 2026</li>
-        <li><span class="icon">🕖</span> 19:00hs (Argentina)</li>
-        <li><span class="icon">📍</span> La Crypta, Buenos Aires</li>
-        <li><span class="icon">👥</span> Máximo 30 personas</li>
-        <li><span class="icon">🔗</span> Pagos via <span class="nip-badge nwc">NWC (NIP-47)</span> + <span class="nip-badge zap">Zaps (NIP-57)</span></li>
-      </ul>
-
-      <div class="price-box">
-        <div>
-          <div class="price-label">Depósito de reserva</div>
-          <div class="price-sub">Canjeable por una consumición al llegar</div>
-        </div>
-        <div style="text-align:right">
-          <div class="price-amount" id="priceDisplay">1,000 sats</div>
-          <div class="price-sub">~$0.60 USD</div>
-        </div>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+      <img src="https://avatars.githubusercontent.com/u/112116892?s=200&v=4"
+           alt="La Crypta"
+           style="width:44px;height:44px;border-radius:50%;border:2px solid rgba(139,92,246,0.3)">
+      <div>
+        <div style="font-size:0.78rem;color:var(--text-dim);font-weight:500;letter-spacing:0.05em;text-transform:uppercase">La Crypta presenta</div>
+        <div style="font-size:1.5rem;font-weight:900;letter-spacing:-0.03em;background:linear-gradient(135deg,#fff,rgba(255,255,255,0.85));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">Proof of Attendance (HDMP)</div>
       </div>
+    </div>
 
-      <div class="spots-bar">
-        <div class="spots-text">
-          <span id="spotsText">Calculando lugares...</span>
-          <span id="spotsCount"></span>
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:24px">
+      <span class="nip-badge nwc">NWC (NIP-47)</span>
+      <span style="color:var(--text-dim);font-size:0.8rem">+</span>
+      <span class="nip-badge zap">Zaps (NIP-57)</span>
+    </div>
+
+    <div class="section-title" style="margin-bottom:14px">Próximos eventos</div>
+
+    <div id="eventsList" style="display:flex;flex-direction:column;gap:10px;margin-bottom:24px"></div>
+
+    <div id="selectedEventDetail" style="display:none">
+      <div class="card">
+        <div class="event-emoji">⚡</div>
+        <div class="event-title" id="detailEventName"></div>
+        <div class="event-subtitle" id="detailEventSeries"></div>
+
+        <ul class="event-info">
+          <li><span class="icon">📅</span> <span id="detailDate"></span></li>
+          <li><span class="icon">🕖</span> <span id="detailTime"></span></li>
+          <li><span class="icon">📍</span> <span id="detailLocation"></span></li>
+          <li><span class="icon">👥</span> Máximo <span id="detailCapacity"></span> personas</li>
+          <li><span class="icon">🔗</span> Pagos via <span class="nip-badge nwc">NWC (NIP-47)</span> + <span class="nip-badge zap">Zaps (NIP-57)</span></li>
+        </ul>
+
+        <div class="price-box">
+          <div>
+            <div class="price-label">Depósito de reserva</div>
+            <div class="price-sub">Canjeable por una consumición al llegar</div>
+          </div>
+          <div style="text-align:right">
+            <div class="price-amount" id="detailPrice"></div>
+            <div class="price-sub">~$0.60 USD</div>
+          </div>
         </div>
-        <div class="spots-track">
-          <div class="spots-fill" id="spotsBar" style="width: 0%"></div>
+
+        <div class="spots-bar">
+          <div class="spots-text">
+            <span id="spotsText">Calculando lugares...</span>
+            <span id="spotsCount"></span>
+          </div>
+          <div class="spots-track">
+            <div class="spots-fill" id="spotsBar" style="width: 0%"></div>
+          </div>
         </div>
+
+        <p class="description">
+          Reservá tu lugar pagando <strong id="detailPriceText">1,000 sats</strong> con Lightning Network via NWC.
+          Tu pago queda registrado como un <strong>Zap (NIP-57)</strong> verificable en Nostr.
+          Al llegar al evento, mostrás tu QR y canjeás tu consumición.
+        </p>
+
+        <button class="btn btn-primary" id="reserveBtn" onclick="showView('reserve')">
+          ⚡ Reservar mi lugar
+        </button>
       </div>
-
-      <p class="description">
-        Reservá tu lugar pagando <strong>1,000 sats</strong> con Lightning Network via NWC.
-        Tu pago queda registrado como un <strong>Zap (NIP-57)</strong> verificable en Nostr.
-        Al llegar al evento, mostrás tu QR y canjeás tu consumición.
-      </p>
-
-      <button class="btn btn-primary" id="reserveBtn" onclick="showView('reserve')">
-        ⚡ Reservar mi lugar
-      </button>
     </div>
 
     <div class="footer">
-      <a href="https://hackaton.lacrypta.ar" target="_blank">hackaton.lacrypta.ar</a>
-      · Lightning Hackathons 2026 · NWC + Zaps
+      <a href="https://cowork.lacrypta.ar" target="_blank">cowork.lacrypta.ar</a>
+      · Proof of Attendance · NWC + Zaps
     </div>
   </div>
 
@@ -964,7 +1016,7 @@
     <button class="btn btn-secondary" onclick="showView('event')">← Ver el evento</button>
 
     <div class="footer">
-      ¡Nos vemos el 10 de Marzo! ⚡
+      ¡Nos vemos en La Crypta! ⚡
     </div>
   </div>
 
@@ -1120,19 +1172,68 @@
     import { generateSecretKey, getPublicKey, finalizeEvent, verifyEvent } from "https://esm.sh/nostr-tools@2.7.0";
     import { bytesToHex, hexToBytes } from "https://esm.sh/@noble/hashes@1.4.0/utils";
 
-    // ── CONFIGURACIÓN DEL EVENTO ──────────────────────────
-    const EVENT_CONFIG = {
-      name: "Lightning Hackathon FOUNDATIONS",
-      date: "Martes 10 de Marzo, 2026",
-      time: "19:00hs",
-      location: "La Crypta, Buenos Aires",
-      price: 1000,          // sats
-      maxCapacity: 30,
-      organizerLnAddress: "tamedpeen07@walletofsatoshi.com",
-      // Nostr pubkey del organizador (para Zaps)
-      organizerPubkey: "0000000000000000000000000000000000000000000000000000000000000000",
-      nostrRelays: ["wss://relay.damus.io", "wss://nos.lol", "wss://relay.nostr.band"]
-    };
+    // ── CONFIGURACIÓN DE EVENTOS (MULTI-EVENTO) ──────────
+    const EVENTS_LIST = [
+      {
+        id: 'cowork-mar17',
+        name: 'Cowork — SOLO CON TICKET',
+        series: 'Proof of Attendance (HDMP)',
+        date: 'Martes 17 de Marzo, 2026',
+        dateShort: 'Mar 17',
+        time: '16:00hs',
+        location: 'Villanueva 1367 — La Crypta, Buenos Aires',
+        price: 1000,
+        maxCapacity: 24,
+        organizerLnAddress: 'tamedpeen07@walletofsatoshi.com',
+        organizerPubkey: '0000000000000000000000000000000000000000000000000000000000000000',
+        nostrRelays: ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.nostr.band']
+      },
+      {
+        id: 'cowork-mar24',
+        name: 'Cowork — SOLO CON TICKET',
+        series: 'Proof of Attendance (HDMP)',
+        date: 'Martes 24 de Marzo, 2026',
+        dateShort: 'Mar 24',
+        time: '16:00hs',
+        location: 'Villanueva 1367 — La Crypta, Buenos Aires',
+        price: 1000,
+        maxCapacity: 24,
+        organizerLnAddress: 'tamedpeen07@walletofsatoshi.com',
+        organizerPubkey: '0000000000000000000000000000000000000000000000000000000000000000',
+        nostrRelays: ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.nostr.band']
+      },
+      {
+        id: 'cowork-mar31',
+        name: 'Cowork — SOLO CON TICKET',
+        series: 'Proof of Attendance (HDMP)',
+        date: 'Martes 31 de Marzo, 2026',
+        dateShort: 'Mar 31',
+        time: '17:00hs',
+        location: 'Villanueva 1367 — La Crypta, Buenos Aires',
+        price: 1000,
+        maxCapacity: 24,
+        organizerLnAddress: 'tamedpeen07@walletofsatoshi.com',
+        organizerPubkey: '0000000000000000000000000000000000000000000000000000000000000000',
+        nostrRelays: ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.nostr.band']
+      },
+      {
+        id: 'cowork-apr7',
+        name: 'Cowork — SOLO CON TICKET',
+        series: 'Proof of Attendance (HDMP)',
+        date: 'Martes 7 de Abril, 2026',
+        dateShort: 'Abr 7',
+        time: '17:00hs',
+        location: 'Villanueva 1367 — La Crypta, Buenos Aires',
+        price: 1000,
+        maxCapacity: 24,
+        organizerLnAddress: 'tamedpeen07@walletofsatoshi.com',
+        organizerPubkey: '0000000000000000000000000000000000000000000000000000000000000000',
+        nostrRelays: ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.nostr.band']
+      }
+    ];
+
+    let selectedEvent = EVENTS_LIST[0]; // default to first event
+    let EVENT_CONFIG = selectedEvent; // backward compatibility
 
     // ── STATE ────────────────────────────────────────────
     let nwcClient = null;
@@ -1162,7 +1263,7 @@
         this._lookupCount[payment_hash]++;
         if (this._lookupCount[payment_hash] >= 3) {
           const preimage = Array.from(crypto.getRandomValues(new Uint8Array(32))).map(b => b.toString(16).padStart(2,'0')).join('');
-          return { preimage, settled_at: Math.floor(Date.now()/1000), amount: EVENT_CONFIG.price * 1000 };
+          return { preimage, settled_at: Math.floor(Date.now()/1000), amount: selectedEvent.price * 1000 };
         }
         return { preimage: null, settled_at: null };
       },
@@ -1228,6 +1329,61 @@
       showView('event');
     };
 
+    // ── EVENT SELECTION ──────────────────────────────────
+    window.selectEvent = function(eventId) {
+      selectedEvent = EVENTS_LIST.find(e => e.id === eventId) || EVENTS_LIST[0];
+      // Update EVENT_CONFIG reference for backward compat
+      Object.assign(EVENT_CONFIG, selectedEvent);
+
+      renderEventsList();
+      showEventDetail();
+    };
+
+    function renderEventsList() {
+      const container = document.getElementById('eventsList');
+      container.innerHTML = EVENTS_LIST.map(evt => {
+        const parts = evt.dateShort.split(' ');
+        const month = parts[0];
+        const day = parts[1];
+        const isSelected = evt.id === selectedEvent.id;
+        return `
+          <div class="event-list-card ${isSelected ? 'selected' : ''}" onclick="selectEvent('${evt.id}')">
+            <div class="elc-left">
+              <div class="elc-date">
+                <div class="day">${day}</div>
+                <div class="month">${month}</div>
+              </div>
+              <div class="elc-info">
+                <div class="elc-name">${escapeHtml(evt.name)}</div>
+                <div class="elc-time">🕐 ${evt.time} · 📍 La Crypta</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <div class="elc-price">${evt.price.toLocaleString()} sats</div>
+              <div class="elc-arrow">→</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function showEventDetail() {
+      const detail = document.getElementById('selectedEventDetail');
+      detail.style.display = 'block';
+      document.getElementById('detailEventName').textContent = selectedEvent.name;
+      document.getElementById('detailEventSeries').textContent = selectedEvent.series;
+      document.getElementById('detailDate').textContent = selectedEvent.date;
+      document.getElementById('detailTime').textContent = selectedEvent.time + ' (Argentina)';
+      document.getElementById('detailLocation').textContent = selectedEvent.location;
+      document.getElementById('detailCapacity').textContent = selectedEvent.maxCapacity;
+      document.getElementById('detailPrice').textContent = selectedEvent.price.toLocaleString() + ' sats';
+      document.getElementById('detailPriceText').textContent = selectedEvent.price.toLocaleString() + ' sats';
+      updateSpotsBar();
+
+      // Scroll to detail
+      detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
     function updateNWCStatus(connected, text) {
       const dot = document.getElementById('nwcDot');
       const statusText = document.getElementById('nwcStatusText');
@@ -1249,6 +1405,7 @@
       // Update active header link
       document.querySelectorAll('.header-link').forEach(l => l.classList.remove('active'));
 
+      if (viewId === 'event') { renderEventsList(); showEventDetail(); }
       if (viewId === 'organizer') loadOrganizerPanel();
       if (viewId === 'audit') loadAuditDashboard();
     };
@@ -1358,8 +1515,8 @@
       try {
         // Create invoice via NWC (NIP-47)
         const invoiceResult = await nwcClient.makeInvoice({
-          amount: EVENT_CONFIG.price * 1000, // NWC uses millisats
-          description: `HDMP Reserva — ${currentName} — ${EVENT_CONFIG.name}`
+          amount: selectedEvent.price * 1000, // NWC uses millisats
+          description: `HDMP Reserva — ${currentName} — ${selectedEvent.name} ${selectedEvent.dateShort}`
         });
 
         currentInvoice = invoiceResult.paymentRequest;
@@ -1446,7 +1603,7 @@
       const paymentEntry = {
         paymentHash: currentPaymentHash,
         preimage: preimage,
-        amount: EVENT_CONFIG.price,
+        amount: selectedEvent.price,
         name: currentName,
         npub: currentNpub,
         invoice: currentInvoice,
@@ -1475,12 +1632,12 @@
           kind: 9734,
           created_at: Math.floor(Date.now() / 1000),
           tags: [
-            ["p", EVENT_CONFIG.organizerPubkey],
-            ["amount", String(EVENT_CONFIG.price * 1000)], // millisats
-            ["relays", ...EVENT_CONFIG.nostrRelays],
+            ["p", selectedEvent.organizerPubkey],
+            ["amount", String(selectedEvent.price * 1000)], // millisats
+            ["relays", ...selectedEvent.nostrRelays],
             ["e", generateEventId()], // event being zapped (reservation event)
           ],
-          content: `Reserva HDMP — ${currentName} — ${EVENT_CONFIG.name}`,
+          content: `Reserva HDMP — ${currentName} — ${selectedEvent.name} ${selectedEvent.dateShort}`,
         };
 
         // If attendee provided npub, add as sender
@@ -1511,7 +1668,7 @@
           kind: 9735,
           created_at: Math.floor(Date.now() / 1000),
           tags: [
-            ["p", EVENT_CONFIG.organizerPubkey],
+            ["p", selectedEvent.organizerPubkey],
             ["bolt11", currentInvoice],
             ["description", JSON.stringify(zapRequest)],
             ["preimage", preimage || ''],
@@ -1554,7 +1711,7 @@
         invoice: currentInvoice,
         paymentHash: currentPaymentHash,
         preimage: preimage,
-        amount: EVENT_CONFIG.price,
+        amount: selectedEvent.price,
         status: 'confirmed',
         createdAt: now.toISOString(),
         redeemedAt: null,
@@ -1568,7 +1725,9 @@
       document.getElementById('ticketCode').textContent = ticketCode;
       document.getElementById('ticketAttendeeName').textContent =
         currentName !== 'Anónimo' ? `Para: ${currentName}` : '';
-      document.getElementById('ticketEventName').textContent = EVENT_CONFIG.name;
+      document.getElementById('ticketEventName').textContent = selectedEvent.name;
+      document.getElementById('ticketDetail').innerHTML =
+        `📅 ${selectedEvent.date}<br>🕖 ${selectedEvent.time} · 📍 ${escapeHtml(selectedEvent.location)}<br>💰 ${selectedEvent.price.toLocaleString()} sats pagados<br>🍺 1 consumición incluida`;
 
       // Zap details on ticket
       document.getElementById('ticketPaymentHash').textContent =
@@ -1835,8 +1994,8 @@
 
       // Check 5: Amounts should match
       log.forEach(l => {
-        if (l.amount && l.amount !== EVENT_CONFIG.price) {
-          issues.push(`🔴 Pago ${l.paymentHash?.slice(0,12)}... con monto inválido: ${l.amount} (esperado: ${EVENT_CONFIG.price})`);
+        if (l.amount && l.amount !== selectedEvent.price) {
+          issues.push(`🔴 Pago ${l.paymentHash?.slice(0,12)}... con monto inválido: ${l.amount} (esperado: ${selectedEvent.price})`);
         }
       });
 
@@ -1864,12 +2023,12 @@
     function updateSpotsBar() {
       const reservations = getReservations();
       const taken = reservations.length;
-      const available = EVENT_CONFIG.maxCapacity - taken;
-      const pct = (taken / EVENT_CONFIG.maxCapacity) * 100;
+      const available = selectedEvent.maxCapacity - taken;
+      const pct = (taken / selectedEvent.maxCapacity) * 100;
 
       document.getElementById('spotsText').textContent =
         available > 0 ? `${available} lugares disponibles` : '¡Sin lugares!';
-      document.getElementById('spotsCount').textContent = `${taken}/${EVENT_CONFIG.maxCapacity}`;
+      document.getElementById('spotsCount').textContent = `${taken}/${selectedEvent.maxCapacity}`;
       document.getElementById('spotsBar').style.width = pct + '%';
 
       const badge = document.querySelector('#view-event .badge');
