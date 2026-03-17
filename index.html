@@ -847,7 +847,7 @@
           </div>
           <div style="text-align:right">
             <div class="price-amount" id="detailPrice"></div>
-            <div class="price-sub">~$0.60 USD</div>
+            <div class="price-sub" id="priceUsd">~$... USD</div>
           </div>
         </div>
 
@@ -1385,10 +1385,38 @@
       document.getElementById('detailCapacity').textContent = selectedEvent.maxCapacity;
       document.getElementById('detailPrice').textContent = selectedEvent.price.toLocaleString() + ' sats';
       document.getElementById('detailPriceText').textContent = selectedEvent.price.toLocaleString() + ' sats';
+      updatePriceUsd();
       updateSpotsBar();
 
       // Scroll to detail
       detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // ── CONVERSIÓN SATS → USD (live price) ──────────────
+    let _btcPriceUsd = null;
+    async function fetchBtcPrice() {
+      if (_btcPriceUsd) return _btcPriceUsd;
+      try {
+        const res = await fetch('https://mempool.space/api/v1/prices');
+        const data = await res.json();
+        _btcPriceUsd = data.USD;
+        return _btcPriceUsd;
+      } catch (e) {
+        console.warn('Could not fetch BTC price:', e);
+        return null;
+      }
+    }
+
+    async function updatePriceUsd() {
+      const el = document.getElementById('priceUsd');
+      if (!el || !selectedEvent) return;
+      const btcPrice = await fetchBtcPrice();
+      if (btcPrice) {
+        const usd = (selectedEvent.price / 100000000) * btcPrice;
+        el.textContent = `~$${usd.toFixed(2)} USD`;
+      } else {
+        el.textContent = '';
+      }
     }
 
     function updateNWCStatus(connected, text) {
@@ -2204,6 +2232,7 @@
     // Wrapped in async IIFE to avoid top-level await (Vite/esbuild compatibility)
     (async function init() {
       updateSpotsBar();
+      updatePriceUsd();
       setStep(1);
 
       // Try to restore NWC connection (encrypted storage)
