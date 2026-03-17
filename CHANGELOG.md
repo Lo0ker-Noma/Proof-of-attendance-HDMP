@@ -3,11 +3,13 @@
 ## [2.5.0] — 2026-03-17 — Production Live Mode
 
 ### Breaking Changes
-- **Demo mode removed** — App now requires a real NWC wallet connection for all payments
-- **Old NWC Setup screen removed** — NWC input is now inline on the event page
+- **Demo mode removed** — App now uses real NWC wallet for all payments
+- **Org wallet hardcoded** — La Crypta's Primal wallet auto-connects on page load. Attendees never see NWC config.
+- **NWC config moved to organizer panel** — Only accessible behind PIN (⚡HDMP)
 
 ### Added
-- **Inline NWC connection** — Collapsible NWC input box integrated directly on the event page (no separate screen)
+- **Seamless attendee flow** — Arrive → see event → reserve → pay QR → done. No wallet config needed.
+- **Auto-connect org wallet** — `autoConnectOrgWallet()` connects La Crypta's Primal NWC on init
 - **Dynamic sats→USD conversion** — Real-time BTC price via `mempool.space/api/v1/prices`, updates automatically
 - **Robust payment verification** — `lookupInvoice` now handles NIP-47 response wrappers (`.result`, `.response`) and detects multiple field name variations: `preimage`, `payment_preimage`, `settled_at`, `settledAt`, `paid`, `state`, `status`, `amount_msats`
 - **Multi-wallet compatibility** — Tested and normalized for Primal, Alby, and Mutiny NWC implementations

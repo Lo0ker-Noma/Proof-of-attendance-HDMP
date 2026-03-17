@@ -194,15 +194,24 @@ Abrí `http://localhost:5173`
 
 ---
 
-## Configuración
+## Flujo del asistente
 
-Para usar con tu propia wallet, necesitás un NWC connection string:
+1. Entrá a la app → ves los eventos de La Crypta
+2. Elegí un evento → tocá "Reservar mi plaza"
+3. Completá nombre y npub → "Generar Invoice"
+4. Escaneá el QR con tu wallet Lightning (Wallet of Satoshi, Phoenix, Primal, etc.)
+5. El pago se verifica automáticamente → recibís tu ticket con QR
+
+La wallet del organizador (La Crypta) se conecta automáticamente al cargar la app. Los asistentes no necesitan configurar nada.
+
+## Configuración del organizador
+
+Para cambiar la wallet receptora, andá al panel Organizador (PIN: ⚡HDMP) y pegá un nuevo NWC string.
 
 1. Andá a tu wallet NWC compatible (Primal, Alby, Mutiny, etc.)
 2. Settings → Nostr Wallet Connect → New connection
 3. Permisos: `make_invoice`, `lookup_invoice`, `get_balance`, `list_transactions`
-4. Copiá el string que empieza con `nostr+walletconnect://`
-5. En la app, tocá el box "🔌 Wallet NWC" en la página del evento y pegá el string
+4. Copiá el string `nostr+walletconnect://...` y pegalo en el panel del organizador
 
 Para configurar eventos, editá `EVENTS_LIST` en `index.html`:
 
