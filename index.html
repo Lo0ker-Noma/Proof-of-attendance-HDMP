@@ -790,28 +790,16 @@
       </div>
     </div>
 
-    <!-- NWC Connection Box (inline on event page) -->
-    <div id="nwcInlineBox" class="price-box" style="margin-bottom:16px;cursor:pointer" onclick="document.getElementById('nwcInlineExpand').style.display = document.getElementById('nwcInlineExpand').style.display === 'none' ? 'block' : 'none'">
+    <!-- NWC Status Indicator (auto-connected via org wallet) -->
+    <div id="nwcInlineBox" class="price-box" style="margin-bottom:16px">
       <div>
-        <div class="price-label">🔌 Wallet NWC</div>
-        <div class="price-sub" id="nwcInlineStatus" style="color:#ff6b6b">Sin conectar — tocá para configurar</div>
+        <div class="price-label">⚡ Pagos Lightning</div>
+        <div class="price-sub" id="nwcInlineStatus" style="color:#fbbf24">Conectando wallet...</div>
       </div>
       <div style="text-align:right">
         <div style="display:flex;align-items:center;gap:4px">
           <span class="nip-badge nwc" style="font-size:0.65rem;padding:2px 6px">NIP-47</span>
           <span class="nip-badge zap" style="font-size:0.65rem;padding:2px 6px">NIP-57</span>
-        </div>
-      </div>
-    </div>
-    <div id="nwcInlineExpand" style="display:none;margin-bottom:16px">
-      <div class="card" style="padding:14px">
-        <textarea id="nwcInput" rows="2" placeholder="nostr+walletconnect://..." style="font-size:0.75rem;font-family:monospace;resize:vertical;width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;padding:8px;margin-bottom:8px"></textarea>
-        <button class="btn btn-nwc" id="nwcConnectBtn" onclick="connectNWC()" style="width:100%;padding:10px;font-size:0.85rem">
-          🔗 Conectar Wallet
-        </button>
-        <div style="font-size:0.7rem;color:var(--text-dim);margin-top:8px;line-height:1.5">
-          Obtené tu NWC string en <strong>getalby.com</strong>, <strong>Primal</strong>, o tu wallet NWC compatible.
-          Permisos: make_invoice, lookup_invoice, get_balance.
         </div>
       </div>
     </div>
@@ -1077,9 +1065,13 @@
     <button class="btn btn-secondary" style="margin-top: 24px" onclick="showView('event')">
       ← Ver el evento
     </button>
-    <button class="btn btn-secondary" onclick="showView('event'); var ex=document.getElementById('nwcInlineExpand'); if(ex) ex.style.display='block';">
-      🔌 Reconfigurar NWC
-    </button>
+    <div style="margin-top:16px;border-top:1px solid rgba(255,255,255,0.1);padding-top:16px">
+      <div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:8px">🔌 Wallet NWC del organizador</div>
+      <textarea id="nwcOrgInput" rows="2" placeholder="nostr+walletconnect://..." style="font-size:0.7rem;font-family:monospace;resize:vertical;width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;padding:8px;margin-bottom:8px"></textarea>
+      <button class="btn btn-secondary" onclick="connectNWC()" style="width:100%;padding:8px;font-size:0.8rem">
+        🔌 Cambiar Wallet NWC
+      </button>
+    </div>
     <button class="btn btn-secondary" style="color: #ff6b6b" onclick="clearAllData()">
       🗑️ Limpiar datos (requiere PIN)
     </button>
@@ -1229,6 +1221,9 @@
     let selectedEvent = EVENTS_LIST[0]; // default to first event
     let EVENT_CONFIG = selectedEvent; // backward compatibility
 
+    // ── ORG WALLET CONFIG (La Crypta — Primal NWC) ──────
+    const ORG_NWC_URL = 'nostr+walletconnect://1291af9c119879ef7a59636432c6e06a7a058c0cae80db27c0f20f61f3734e52?relay=wss%3A%2F%2Fnwc.primal.net%2F75rpr7mqptxsoujjq7qwlqdwqen01q&secret=4c5e34010ef1548cf01e0c31b26faa9fe933e9b5145479ca52e710416b93a522&lud16=noblemoose21%40primal.net';
+
     // ── STATE ────────────────────────────────────────────
     let nwcClient = null;
     let isNWCConnected = false;
@@ -1276,54 +1271,45 @@
     }
 
     // ── NWC CONNECTION ──────────────────────────────────
-    window.connectNWC = async function() {
-      const input = document.getElementById('nwcInput').value.trim();
-      const btn = document.getElementById('nwcConnectBtn');
+    // Auto-connect org wallet on page load
+    async function autoConnectOrgWallet() {
+      try {
+        const { nwc } = await import("https://esm.sh/@getalby/sdk@3.5.1");
+        nwcClient = new nwc.NWCClient({ nostrWalletConnectUrl: ORG_NWC_URL });
+        const info = await nwcClient.getInfo();
+        isNWCConnected = true;
+        isDemoMode = false;
+        console.log('Org wallet connected:', info.alias || 'La Crypta');
+        updateNWCStatus(true, info.alias || 'La Crypta');
+        return true;
+      } catch (err) {
+        console.error('Org wallet connection failed:', err.message);
+        updateNWCStatus(false, 'Error de conexión');
+        return false;
+      }
+    }
 
-      if (!input.startsWith('nostr+walletconnect://')) {
+    // Manual NWC connection (from organizer panel)
+    window.connectNWC = async function() {
+      const input = document.getElementById('nwcOrgInput')?.value?.trim();
+
+      if (!input || !input.startsWith('nostr+walletconnect://')) {
         showToast('El string debe empezar con nostr+walletconnect://', 'error');
         return;
       }
 
-      btn.disabled = true;
-      btn.textContent = '⏳ Conectando...';
-
       try {
-        // Dynamically import @getalby/sdk for NWC
         const { nwc } = await import("https://esm.sh/@getalby/sdk@3.5.1");
         nwcClient = new nwc.NWCClient({ nostrWalletConnectUrl: input });
-
-        // Test connection
         const info = await nwcClient.getInfo();
         isNWCConnected = true;
         isDemoMode = false;
-
-        // Save NWC URL encrypted (AES-GCM via Web Crypto API)
-        const encrypted = await encryptNWCUrl(input);
-        if (encrypted) {
-          localStorage.setItem('hdmp_nwc_url_enc', encrypted);
-          localStorage.removeItem('hdmp_nwc_url'); // Remove any old plaintext
-        }
         console.log('NWC connected (secret redacted):', input.replace(/secret=[^&]+/, 'secret=REDACTED'));
-
         updateNWCStatus(true, info.alias || 'Wallet conectada');
         showToast(`Wallet "${info.alias || 'NWC'}" conectada`, 'success');
-        showView('event');
-
       } catch (err) {
         showToast('Error conectando: ' + err.message, 'error');
-        btn.disabled = false;
-        btn.textContent = '🔗 Conectar Wallet';
       }
-    };
-
-    window.useDemoMode = function() {
-      isDemoMode = true;
-      isNWCConnected = true;
-      nwcClient = nwcMock;
-      updateNWCStatus(true, 'Demo Mode');
-      showToast('Modo demo activado — pagos simulados', 'info');
-      showView('event');
     };
 
     // ── EVENT SELECTION ──────────────────────────────────
@@ -1414,28 +1400,24 @@
       const statusText = document.getElementById('nwcStatusText');
       dot.className = 'nwc-dot ' + (connected ? 'connected' : 'disconnected');
       statusText.textContent = text || (connected ? 'Conectada' : 'Sin wallet');
-      // Update inline NWC box on event page
+      // Update inline status on event page
       const inlineStatus = document.getElementById('nwcInlineStatus');
       if (inlineStatus) {
         if (connected) {
-          inlineStatus.textContent = `✅ ${text || 'Wallet conectada'}`;
+          inlineStatus.textContent = `✅ ${text || 'Wallet conectada'} — Pagos activos`;
           inlineStatus.style.color = '#00ff9d';
-          document.getElementById('nwcInlineExpand').style.display = 'none';
         } else {
-          inlineStatus.textContent = 'Sin conectar — tocá para configurar';
-          inlineStatus.style.color = '#ff6b6b';
+          inlineStatus.textContent = '⏳ Reconectando...';
+          inlineStatus.style.color = '#fbbf24';
         }
       }
     }
 
     // ── NAVEGACIÓN ENTRE VISTAS ───────────────────────────
     window.showView = function(viewId) {
-      // Allow event view without NWC, but block reserve/payment without wallet
+      // Block reserve/payment if org wallet not connected yet
       if (!isNWCConnected && viewId === 'reserve') {
-        showToast('Primero conectá tu wallet NWC arriba', 'error');
-        // Expand the inline NWC box
-        const expand = document.getElementById('nwcInlineExpand');
-        if (expand) expand.style.display = 'block';
+        showToast('Wallet del organizador no conectada — esperá unos segundos', 'error');
         return;
       }
       if (!isNWCConnected && viewId !== 'event') {
@@ -2296,38 +2278,13 @@
       updateSpotsBar();
       updatePriceUsd();
       setStep(1);
+      showView('event');
 
-      // Try to restore NWC connection (encrypted storage)
-      const encryptedNWC = localStorage.getItem('hdmp_nwc_url_enc');
-      const legacyNWC = localStorage.getItem('hdmp_nwc_url'); // old plaintext fallback
-      const savedNWC = encryptedNWC ? await decryptNWCUrl(encryptedNWC) : legacyNWC;
-
-      // If we found a legacy plaintext URL, encrypt it and remove plaintext
-      if (legacyNWC && !encryptedNWC) {
-        const enc = await encryptNWCUrl(legacyNWC);
-        if (enc) { localStorage.setItem('hdmp_nwc_url_enc', enc); localStorage.removeItem('hdmp_nwc_url'); }
-      }
-
-      if (savedNWC) {
-        try {
-          const { nwc } = await import("https://esm.sh/@getalby/sdk@3.5.1");
-          nwcClient = new nwc.NWCClient({ nostrWalletConnectUrl: savedNWC });
-          const info = await nwcClient.getInfo();
-          isNWCConnected = true;
-          updateNWCStatus(true, info.alias || 'Conectada');
-          showView('event');
-        } catch (e) {
-          console.log('NWC restore failed:', e.message);
-          showView('event'); // Show event page, NWC input is inline now
-        }
-      } else {
-        showView('event'); // Show event page, NWC input is inline now
-      }
+      // Auto-connect org wallet (La Crypta — Primal NWC)
+      await autoConnectOrgWallet();
 
       if (location.hash === '#organizer') showView('organizer');
       if (location.hash === '#audit') showView('audit');
-      // Demo mode disabled for live event
-      // if (location.hash === '#demo') { useDemoMode(); }
     })();
   </script>
 
