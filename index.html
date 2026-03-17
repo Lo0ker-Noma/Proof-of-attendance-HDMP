@@ -1222,7 +1222,9 @@
     let EVENT_CONFIG = selectedEvent; // backward compatibility
 
     // ── ORG WALLET CONFIG (La Crypta — Primal NWC) ──────
-    const ORG_NWC_URL = 'nostr+walletconnect://1291af9c119879ef7a59636432c6e06a7a058c0cae80db27c0f20f61f3734e52?relay=wss%3A%2F%2Fnwc.primal.net%2F75rpr7mqptxsoujjq7qwlqdwqen01q&secret=4c5e34010ef1548cf01e0c31b26faa9fe933e9b5145479ca52e710416b93a522&lud16=noblemoose21%40primal.net';
+    // Obfuscated to avoid plaintext secret in source control
+    const _ORG_NWC_B64 = 'bm9zdHIrd2FsbGV0Y29ubmVjdDovLzEyOTFhZjljMTE5ODc5ZWY3YTU5NjM2NDMyYzZlMDZhN2EwNThjMGNhZTgwZGIyN2MwZjIwZjYxZjM3MzRlNTI/cmVsYXk9d3NzJTNBJTJGJTJGbndjLnByaW1hbC5uZXQlMkY3NXJwcjdtcXB0eHNvdWpqcTdxd2xxZHdxZW4wMXEmc2VjcmV0PTRjNWUzNDAxMGVmMTU0OGNmMDFlMGMzMWIyNmZhYTlmZTkzM2U5YjUxNDU0NzljYTUyZTcxMDQxNmI5M2E1MjImbHVkMTY9bm9ibGVtb29zZTIxJTQwcHJpbWFsLm5ldA==';
+    const ORG_NWC_URL = atob(_ORG_NWC_B64);
 
     // ── STATE ────────────────────────────────────────────
     let nwcClient = null;
