@@ -792,9 +792,11 @@
         🔗 Conectar Wallet
       </button>
 
+      <!-- Demo mode disabled for live event
       <button class="btn btn-secondary" onclick="useDemoMode()">
         🎮 Modo Demo (sin wallet real)
       </button>
+      -->
     </div>
 
     <div class="card" style="font-size:0.85rem;color:rgba(255,255,255,0.5);line-height:1.8">
@@ -1091,7 +1093,7 @@
       🔌 Reconfigurar NWC
     </button>
     <button class="btn btn-secondary" style="color: #ff6b6b" onclick="clearAllData()">
-      🗑️ Limpiar datos (demo)
+      🗑️ Limpiar datos (requiere PIN)
     </button>
   </div>
 
@@ -2277,7 +2279,8 @@
 
       if (location.hash === '#organizer') showView('organizer');
       if (location.hash === '#audit') showView('audit');
-      if (location.hash === '#demo') { useDemoMode(); }
+      // Demo mode disabled for live event
+      // if (location.hash === '#demo') { useDemoMode(); }
     })();
   </script>
 

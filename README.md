@@ -4,7 +4,7 @@
 
 **Construido para la Lightning Hackathon FOUNDATIONS 2026 de La Crypta.**
 
-**Live demo**: [proof-of-attendance-hdmp.vercel.app](https://proof-of-attendance-hdmp.vercel.app/#demo)
+**Live**: [proof-of-attendance-hdmp.vercel.app](https://proof-of-attendance-hdmp.vercel.app)
 
 ---
 
