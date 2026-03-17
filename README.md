@@ -73,7 +73,7 @@ El corazón de los pagos. NWC reemplaza la Lightning Address como backend:
 - **`getBalance`** — Mostrar el balance de la wallet en el panel del organizador
 - **`listTransactions`** — Listar transacciones para el dashboard de auditoría
 
-La conexión se establece con un NWC string (`nostr+walletconnect://...`) que el organizador obtiene de Alby u otra wallet compatible.
+La conexión se establece con un NWC string (`nostr+walletconnect://...`) que el organizador pega directamente en la página del evento. Compatible con **Primal**, **Alby**, **Mutiny** y cualquier wallet NIP-47.
 
 ### NIP-57 — Zaps
 
@@ -86,35 +86,34 @@ Esto crea un **registro verificable e inmutable** de cada pago en el protocolo N
 
 ---
 
-## Las 6 pantallas
+## Las 5 pantallas
 
 | # | Pantalla | Qué hace |
 |---|----------|----------|
-| 0 | **NWC Setup** | Conectar wallet via NWC string o activar modo demo |
-| 1 | **Evento** | Selección multi-evento, info, precio, lugares, badges NWC+Zaps |
-| 2 | **Pago** | Invoice NWC, QR, verificación automática con polling, Zap receipt |
-| 3 | **Ticket** | QR con código + payment hash + Zap event ID + preimage |
-| 4 | **Organizador** | Stats, canjear tickets, balance de wallet, lista de reservas |
-| 5 | **Auditoría** | Log de pagos, filtros, stats, export CSV, integrity check |
+| 1 | **Evento** | Selección multi-evento, conexión NWC inline, info, precio dinámico (sats + USD), badges NIP-47/NIP-57 |
+| 2 | **Pago** | Invoice NWC, QR, verificación automática con polling cada 5s, Zap receipt |
+| 3 | **Ticket** | QR con código CSPRNG + payment hash + Zap event ID + preimage |
+| 4 | **Organizador** | Stats, canjear tickets con rate limiting, balance de wallet, lista de reservas |
+| 5 | **Auditoría** | Log de pagos, filtros, stats, export CSV (sanitizado), integrity check |
 
 ---
 
-## Seguridad — Pentest & Hardening v2.2 → v2.3
+## Seguridad — Pentest & Hardening v2.2 → v2.5
 
-Se corrieron **3 rondas de pentesting automatizado** con **48 escenarios de ataque** en 21 categorías. Cada ronda de pentest fue seguida de fixes y re-verificación.
+Se corrieron **3 rondas de pentesting automatizado** con **48 escenarios de ataque** en 21 categorías. Cada ronda de pentest fue seguida de fixes y re-verificación. La v2.5 añade hardening adicional para producción.
 
 ### Evolución de seguridad
 
 ```
-                    v2.1 (antes)    v2.2 (pentest 1)   v2.3 (pentest 2)
-                    ────────────    ────────────────    ────────────────
-Tests:              22              22                  26 (nuevos)
-Ataques bloqueados: 5  (23%)        13  (59%)           22  (85%)
-Vulnerabilidades:   17              9                   4
-  CRITICAL:         5               3                   1
-  HIGH:             6               5                   0
-  MEDIUM:           3               1                   2
-  LOW:              3               0                   1
+                    v2.1 (antes)    v2.2 (pentest 1)   v2.3 (pentest 2)   v2.5 (producción)
+                    ────────────    ────────────────    ────────────────    ─────────────────
+Tests:              22              22                  26 (nuevos)         48 (total)
+Ataques bloqueados: 5  (23%)        13  (59%)           22  (85%)          44  (92%)
+Vulnerabilidades:   17              9                   4                   4 (arquitectónicas)
+  CRITICAL:         5               3                   1                   1
+  HIGH:             6               5                   0                   0
+  MEDIUM:           3               1                   2                   2
+  LOW:              3               0                   1                   1
 ```
 
 ### 8 vulnerabilidades reparadas en v2.2
@@ -193,19 +192,17 @@ npm run dev
 
 Abrí `http://localhost:5173`
 
-Para **modo demo** sin wallet real: agregá `#demo` a la URL.
-
 ---
 
 ## Configuración
 
 Para usar con tu propia wallet, necesitás un NWC connection string:
 
-1. Andá a tu wallet NWC compatible (Alby, Mutiny, etc.)
+1. Andá a tu wallet NWC compatible (Primal, Alby, Mutiny, etc.)
 2. Settings → Nostr Wallet Connect → New connection
 3. Permisos: `make_invoice`, `lookup_invoice`, `get_balance`, `list_transactions`
 4. Copiá el string que empieza con `nostr+walletconnect://`
-5. Pegalo en la pantalla de NWC Setup de la app
+5. En la app, tocá el box "🔌 Wallet NWC" en la página del evento y pegá el string
 
 Para configurar eventos, editá `EVENTS_LIST` en `index.html`:
 
@@ -246,10 +243,10 @@ const EVENTS_LIST = [
 ```
 ├── index.html                    # App completa (single-file, ~2200 líneas)
 ├── PROJECT.md                    # Spec del proyecto
-├── CHANGELOG.md                  # Historial de cambios v1 → v2.3
+├── CHANGELOG.md                  # Historial de cambios v1 → v2.5
 ├── SECURITY-AUDIT.md             # Reporte formal de auditoría de seguridad
 ├── AGENTS.md                     # Resumen para evaluadores IA
-├── package.json                  # v2.3.0 con scripts de test
+├── package.json                  # v2.5.0 con scripts de test
 ├── vite.config.js                # Config de Vite
 ├── tests/
 │   ├── unit-tests.js             # 56 unit tests
@@ -262,10 +259,10 @@ const EVENTS_LIST = [
 
 ## Qué falta (post-hackathon)
 
-- [ ] Backend server-side (resuelve las 9 vulnerabilidades restantes de localStorage)
+- [ ] Backend server-side (resuelve las 4 vulnerabilidades restantes de arquitectura client-side)
 - [ ] Publicar Zaps en relays Nostr reales
 - [ ] Hash chain para audit log inmutable
-- [ ] Multi-wallet support
+- [ ] SRI (Subresource Integrity) hashes via bundler
 - [ ] App móvil con scanner QR nativo
 
 ---

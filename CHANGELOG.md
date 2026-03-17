@@ -1,5 +1,33 @@
 # Changelog — HDMP Proof of Attendance
 
+## [2.5.0] — 2026-03-17 — Production Live Mode
+
+### Breaking Changes
+- **Demo mode removed** — App now requires a real NWC wallet connection for all payments
+- **Old NWC Setup screen removed** — NWC input is now inline on the event page
+
+### Added
+- **Inline NWC connection** — Collapsible NWC input box integrated directly on the event page (no separate screen)
+- **Dynamic sats→USD conversion** — Real-time BTC price via `mempool.space/api/v1/prices`, updates automatically
+- **Robust payment verification** — `lookupInvoice` now handles NIP-47 response wrappers (`.result`, `.response`) and detects multiple field name variations: `preimage`, `payment_preimage`, `settled_at`, `settledAt`, `paid`, `state`, `status`, `amount_msats`
+- **Multi-wallet compatibility** — Tested and normalized for Primal, Alby, and Mutiny NWC implementations
+- **Enhanced debug logging** — First 5 lookupInvoice responses logged in full for troubleshooting
+
+### Fixed
+- **Duplicate element ID bug** — Two `<textarea id="nwcInput">` existed (old screen + new inline), causing `getElementById` to read from the wrong (empty) element. Old view removed entirely.
+- **Hardcoded "1,000 sats"** in 3 payment flow locations — Now updates dynamically from `selectedEvent.price`
+- **Static USD price ($0.60)** — Replaced with live calculation via mempool.space API
+- **"No input text" QR error** — `makeInvoice` response field normalized (`paymentRequest` / `payment_request` / `invoice` / `bolt11`)
+- **Payment auto-confirming in demo mode** — Demo mock removed, all payments now require real NWC verification
+- **La Crypta logo blocked by CSP** — Added `https://avatars.githubusercontent.com` to `img-src` policy
+
+### Changed
+- Event prices set to 10 sats for live testing (configurable in `EVENTS_LIST`)
+- NWC "Reconfigurar" button in organizer panel now opens inline box instead of old separate screen
+- Version bumped to 2.5.0
+
+---
+
 ## [2.3.0] — 2026-03-17 — Advanced White Hat Pentest + Deep Hardening
 
 ### Security (13 fixes from 26 advanced pentest scenarios)
