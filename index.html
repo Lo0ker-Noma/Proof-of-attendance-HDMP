@@ -862,7 +862,7 @@
         </div>
 
         <p class="description">
-          Reservá tu lugar pagando <strong id="detailPriceText">1,000 sats</strong> con Lightning Network via NWC.
+          Reservá tu lugar pagando <strong id="detailPriceText">— sats</strong> con Lightning Network via NWC.
           Tu pago queda registrado como un <strong>Zap (NIP-57)</strong> verificable en Nostr.
           Al llegar al evento, mostrás tu QR y canjeás tu consumición.
         </p>
@@ -918,7 +918,7 @@
             <div class="price-sub" id="paymentMethod">via NWC (NIP-47)</div>
           </div>
           <div style="text-align:right">
-            <div class="price-amount">1,000 sats</div>
+            <div class="price-amount" id="paymentPrice">— sats</div>
           </div>
         </div>
       </div>
@@ -937,7 +937,7 @@
       <div class="card">
         <div class="badge nwc" style="margin-bottom:12px">🔗 Invoice generado via NWC</div>
         <div class="payment-info">
-          <span class="payment-amount-big">1,000 sats</span>
+          <span class="payment-amount-big" id="paymentAmountBig">— sats</span>
         </div>
         <div class="payment-address" id="paymentDestination">→ Wallet del organizador</div>
 
@@ -1441,6 +1441,14 @@
       document.querySelectorAll('.header-link').forEach(l => l.classList.remove('active'));
 
       if (viewId === 'event') { renderEventsList(); showEventDetail(); }
+      if (viewId === 'reserve') {
+        // Update all dynamic price labels in the payment flow
+        const priceStr = selectedEvent.price.toLocaleString() + ' sats';
+        const pp = document.getElementById('paymentPrice');
+        if (pp) pp.textContent = priceStr;
+        const pab = document.getElementById('paymentAmountBig');
+        if (pab) pab.textContent = priceStr;
+      }
       if (viewId === 'organizer') loadOrganizerPanel();
       if (viewId === 'audit') loadAuditDashboard();
     };
@@ -1665,6 +1673,11 @@
         document.getElementById('invoiceText').textContent = currentInvoice;
         document.getElementById('paymentDestination').textContent =
           isDemoMode ? '→ Demo Wallet (simulado)' : '→ Wallet del organizador via NWC';
+
+        // Update dynamic price labels
+        const priceStr = selectedEvent.price.toLocaleString() + ' sats';
+        document.getElementById('paymentPrice').textContent = priceStr;
+        document.getElementById('paymentAmountBig').textContent = priceStr;
 
         // Switch to payment step
         document.getElementById('step-form').style.display = 'none';
