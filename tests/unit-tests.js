@@ -18,8 +18,15 @@ const localStorage = {
 function generateTicketCode() {
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // sin 0,O,I,1,L
   let code = 'HDMP-';
-  for (let i = 0; i < 6; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)];
+  // v2.3: CSPRNG + 8 chars (simulated with Math.random in Node test env)
+  const randomBytes = new Uint8Array(8);
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    crypto.getRandomValues(randomBytes);
+  } else {
+    for (let i = 0; i < 8; i++) randomBytes[i] = Math.floor(Math.random() * 256);
+  }
+  for (let i = 0; i < 8; i++) {
+    code += chars[randomBytes[i] % chars.length];
   }
   return code;
 }
@@ -69,7 +76,7 @@ function isValidPaymentHash(hash) {
 }
 
 function isValidTicketCode(code) {
-  return typeof code === 'string' && /^HDMP-[A-Z2-9]{6}$/.test(code);
+  return typeof code === 'string' && /^HDMP-[A-HJ-KMNP-Z2-9]{8}$/.test(code);
 }
 
 function isValidInvoice(invoice) {
@@ -143,7 +150,7 @@ test('generateTicketCode starts with HDMP-', () => {
 
 test('generateTicketCode has correct length', () => {
   const code = generateTicketCode();
-  assertEqual(code.length, 11, 'Code should be 11 chars (HDMP- + 6)');
+  assertEqual(code.length, 13, 'Code should be 13 chars (HDMP- + 8)');
 });
 
 test('generateTicketCode produces unique codes', () => {
@@ -182,50 +189,50 @@ test('getReservations returns empty array initially', () => {
 });
 
 test('saveReservation persists data', () => {
-  saveReservation({ ticketCode: 'HDMP-ABC123', name: 'Test', amount: 1000, status: 'confirmed' });
+  saveReservation({ ticketCode: 'HDMP-ABCDEFGH', name: 'Test', amount: 1000, status: 'confirmed' });
   const r = getReservations();
   assertEqual(r.length, 1);
   assertEqual(r[0].name, 'Test');
 });
 
 test('saveReservation prevents duplicate ticket codes', () => {
-  saveReservation({ ticketCode: 'HDMP-ABC123', name: 'First', amount: 1000, status: 'confirmed' });
-  saveReservation({ ticketCode: 'HDMP-ABC123', name: 'Duplicate', amount: 1000, status: 'confirmed' });
+  saveReservation({ ticketCode: 'HDMP-ABCDEFGH', name: 'First', amount: 1000, status: 'confirmed' });
+  saveReservation({ ticketCode: 'HDMP-ABCDEFGH', name: 'Duplicate', amount: 1000, status: 'confirmed' });
   const r = getReservations();
   assertEqual(r.length, 1);
   assertEqual(r[0].name, 'First');
 });
 
 test('saveReservation allows multiple unique reservations', () => {
-  saveReservation({ ticketCode: 'HDMP-AAA111', name: 'A', amount: 1000, status: 'confirmed' });
-  saveReservation({ ticketCode: 'HDMP-BBB222', name: 'B', amount: 1000, status: 'confirmed' });
-  saveReservation({ ticketCode: 'HDMP-CCC333', name: 'C', amount: 1000, status: 'confirmed' });
+  saveReservation({ ticketCode: 'HDMP-AAABBBCC', name: 'A', amount: 1000, status: 'confirmed' });
+  saveReservation({ ticketCode: 'HDMP-BBBCCCDD', name: 'B', amount: 1000, status: 'confirmed' });
+  saveReservation({ ticketCode: 'HDMP-CCCDDDEF', name: 'C', amount: 1000, status: 'confirmed' });
   assertEqual(getReservations().length, 3);
 });
 
 test('markRedeemed returns true for valid ticket', () => {
-  saveReservation({ ticketCode: 'HDMP-XYZ789', name: 'Attendee', amount: 1000, status: 'confirmed' });
-  const result = markRedeemed('HDMP-XYZ789');
+  saveReservation({ ticketCode: 'HDMP-XYZABCDE', name: 'Attendee', amount: 1000, status: 'confirmed' });
+  const result = markRedeemed('HDMP-XYZABCDE');
   assertEqual(result, true);
 });
 
 test('markRedeemed updates status to redeemed', () => {
-  saveReservation({ ticketCode: 'HDMP-XYZ789', name: 'Attendee', amount: 1000, status: 'confirmed' });
-  markRedeemed('HDMP-XYZ789');
+  saveReservation({ ticketCode: 'HDMP-XYZABCDE', name: 'Attendee', amount: 1000, status: 'confirmed' });
+  markRedeemed('HDMP-XYZABCDE');
   const r = getReservations();
   assertEqual(r[0].status, 'redeemed');
   assert(r[0].redeemedAt !== null, 'redeemedAt should be set');
 });
 
 test('markRedeemed returns "already" for double-redeem', () => {
-  saveReservation({ ticketCode: 'HDMP-XYZ789', name: 'Attendee', amount: 1000, status: 'confirmed' });
-  markRedeemed('HDMP-XYZ789');
-  const result = markRedeemed('HDMP-XYZ789');
+  saveReservation({ ticketCode: 'HDMP-XYZABCDE', name: 'Attendee', amount: 1000, status: 'confirmed' });
+  markRedeemed('HDMP-XYZABCDE');
+  const result = markRedeemed('HDMP-XYZABCDE');
   assertEqual(result, 'already');
 });
 
 test('markRedeemed returns false for non-existent ticket', () => {
-  const result = markRedeemed('HDMP-NOEXIS');
+  const result = markRedeemed('HDMP-NOEXISTT');
   assertEqual(result, false);
 });
 
@@ -302,16 +309,16 @@ test('isValidPaymentHash rejects invalid hashes', () => {
 });
 
 test('isValidTicketCode accepts valid codes', () => {
-  assert(isValidTicketCode('HDMP-ABC234'));
-  assert(isValidTicketCode('HDMP-ZZZZZ9'));
+  assert(isValidTicketCode('HDMP-ABCDEFGH'));
+  assert(isValidTicketCode('HDMP-ZZZZZ999'));
 });
 
 test('isValidTicketCode rejects invalid codes', () => {
   assert(!isValidTicketCode(''));
-  assert(!isValidTicketCode('XXXX-ABC234'));
-  assert(!isValidTicketCode('HDMP-abc234')); // lowercase
+  assert(!isValidTicketCode('XXXX-ABCDEFGH'));
+  assert(!isValidTicketCode('HDMP-abcdefgh')); // lowercase
   assert(!isValidTicketCode('HDMP-AB')); // too short
-  assert(!isValidTicketCode('HDMP-ABCDEFG')); // too long
+  assert(!isValidTicketCode('HDMP-ABCDEF')); // 6 chars (old format)
 });
 
 test('isValidInvoice accepts bolt11 invoices', () => {
@@ -429,7 +436,7 @@ test('NWC lookupInvoice requires payment_hash', () => {
 console.log("\n🔐 Integrity Check");
 
 test('Detects missing payment log entries', () => {
-  saveReservation({ ticketCode: 'HDMP-AAA111', paymentHash: 'a'.repeat(64), status: 'confirmed' });
+  saveReservation({ ticketCode: 'HDMP-AAABBBCC', paymentHash: 'a'.repeat(64), status: 'confirmed' });
   // No payment log entry → should be detected
   const reservations = getReservations();
   const log = getPaymentLog();
@@ -497,8 +504,8 @@ test('sanitizeInput normalizes unicode (NFKC)', () => {
 
 test('saveReservation blocks duplicate paymentHash (double-spend)', () => {
   const hash = 'a'.repeat(64);
-  saveReservation({ ticketCode: 'HDMP-AAA111', paymentHash: hash, name: 'First', amount: 1000, status: 'confirmed' });
-  saveReservation({ ticketCode: 'HDMP-BBB222', paymentHash: hash, name: 'DoubleSpend', amount: 1000, status: 'confirmed' });
+  saveReservation({ ticketCode: 'HDMP-AAABBBCC', paymentHash: hash, name: 'First', amount: 1000, status: 'confirmed' });
+  saveReservation({ ticketCode: 'HDMP-BBBCCCDD', paymentHash: hash, name: 'DoubleSpend', amount: 1000, status: 'confirmed' });
   const r = getReservations();
   assertEqual(r.length, 1, 'Should block second reservation with same paymentHash');
   assertEqual(r[0].name, 'First');
@@ -513,7 +520,7 @@ test('addPaymentLog blocks duplicate paymentHash', () => {
 });
 
 test('markRedeemed rejects invalid ticket code format', () => {
-  saveReservation({ ticketCode: 'HDMP-ABC234', name: 'Test', amount: 1000, status: 'confirmed' });
+  saveReservation({ ticketCode: 'HDMP-ABCDEFGH', name: 'Test', amount: 1000, status: 'confirmed' });
   // Try with script injection in ticket code
   const result = markRedeemed('<script>alert(1)</script>');
   assertEqual(result, false, 'Should reject invalid format');

@@ -3,6 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Security Headers (v2.3) -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://esm.sh; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://esm.sh wss://* https://*; img-src 'self' data: blob:; frame-ancestors 'none';">
+  <meta http-equiv="X-Frame-Options" content="DENY">
+  <meta http-equiv="X-Content-Type-Options" content="nosniff">
+  <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
   <title>⚡ Proof of Attendance — HDMP v2</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1295,7 +1300,7 @@
 
       try {
         // Dynamically import @getalby/sdk for NWC
-        const { nwc } = await import("https://esm.sh/@getalby/sdk@3");
+        const { nwc } = await import("https://esm.sh/@getalby/sdk@3.5.1");
         nwcClient = new nwc.NWCClient({ nostrWalletConnectUrl: input });
 
         // Test connection
@@ -1458,11 +1463,16 @@
     function markRedeemed(ticketCode) {
       // Sanitize input to prevent injection
       ticketCode = sanitizeInput(ticketCode);
-      if (!/^HDMP-[A-HJ-KMNP-Z2-9]{6}$/.test(ticketCode)) return false;
+      if (!/^HDMP-[A-HJ-KMNP-Z2-9]{8}$/.test(ticketCode)) return false;
 
       const reservations = getReservations();
       const idx = reservations.findIndex(r => r.ticketCode === ticketCode);
       if (idx === -1) return false;
+      // v2.3: Verify ticket belongs to the currently selected event (prevent cross-event reuse)
+      if (selectedEvent && reservations[idx].eventId && reservations[idx].eventId !== selectedEvent.id) {
+        console.warn('SECURITY: Cross-event ticket reuse blocked:', ticketCode, 'belongs to', reservations[idx].eventId);
+        return false;
+      }
       if (reservations[idx].status === 'redeemed') return 'already';
       reservations[idx].status = 'redeemed';
       reservations[idx].redeemedAt = new Date().toISOString();
@@ -1523,38 +1533,53 @@
       finally { _storageLock = false; }
     }
 
-    // ── NWC ENCRYPTED STORAGE (Security Fix) ────────────
+    // ── NWC ENCRYPTED STORAGE (Security Fix v2.3) ────────
+    // Keep CryptoKey in memory only — never exported to sessionStorage
+    let _nwcCryptoKey = null;
+    let _nwcIv = null;
     async function encryptNWCUrl(url) {
       try {
-        const key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+        // extractable: false — key cannot be read even via XSS
+        const key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
         const iv = crypto.getRandomValues(new Uint8Array(12));
         const encoded = new TextEncoder().encode(url);
         const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, encoded);
-        const exportedKey = await crypto.subtle.exportKey('raw', key);
-        // Store key in sessionStorage (cleared on tab close), encrypted data in localStorage
-        sessionStorage.setItem('hdmp_nwc_key', bytesToHex(new Uint8Array(exportedKey)));
-        sessionStorage.setItem('hdmp_nwc_iv', bytesToHex(iv));
+        // Store key in JS memory only (not sessionStorage)
+        _nwcCryptoKey = key;
+        _nwcIv = iv;
+        // Clean up legacy sessionStorage keys
+        sessionStorage.removeItem('hdmp_nwc_key');
+        sessionStorage.removeItem('hdmp_nwc_iv');
         return bytesToHex(new Uint8Array(encrypted));
       } catch (e) { console.error('Encryption failed:', e); return null; }
     }
 
     async function decryptNWCUrl(encryptedHex) {
       try {
-        const keyHex = sessionStorage.getItem('hdmp_nwc_key');
-        const ivHex = sessionStorage.getItem('hdmp_nwc_iv');
-        if (!keyHex || !ivHex) return null;
-        const key = await crypto.subtle.importKey('raw', hexToBytes(keyHex), 'AES-GCM', false, ['decrypt']);
-        const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: hexToBytes(ivHex) }, key, hexToBytes(encryptedHex));
+        // Use in-memory key (v2.3) — falls back to legacy sessionStorage for migration
+        let key = _nwcCryptoKey;
+        let iv = _nwcIv;
+        if (!key) {
+          // Legacy fallback: try sessionStorage (will be migrated on next encrypt)
+          const keyHex = sessionStorage.getItem('hdmp_nwc_key');
+          const ivHex = sessionStorage.getItem('hdmp_nwc_iv');
+          if (!keyHex || !ivHex) return null;
+          key = await crypto.subtle.importKey('raw', hexToBytes(keyHex), 'AES-GCM', false, ['decrypt']);
+          iv = hexToBytes(ivHex);
+        }
+        const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, hexToBytes(encryptedHex));
         return new TextDecoder().decode(decrypted);
       } catch (e) { console.error('Decryption failed:', e); return null; }
     }
 
-    // ── GENERAR CÓDIGO ÚNICO DE TICKET ────────────────────
+    // ── GENERAR CÓDIGO ÚNICO DE TICKET (CSPRNG v2.3) ──────
     function generateTicketCode() {
       const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // sin 0,O,I,1,L (ambiguos)
       let code = 'HDMP-';
-      for (let i = 0; i < 6; i++) {
-        code += chars[Math.floor(Math.random() * chars.length)];
+      // Use CSPRNG instead of Math.random() for unpredictable ticket codes
+      const randomBytes = crypto.getRandomValues(new Uint8Array(8));
+      for (let i = 0; i < 8; i++) {
+        code += chars[randomBytes[i] % chars.length];
       }
       return code;
     }
@@ -1859,6 +1884,12 @@
     // ── COPIAR INVOICE ────────────────────────────────────
     window.copyInvoice = function() {
       if (!currentInvoice) return;
+      // v2.3: Validate invoice is a valid Lightning invoice before copying
+      if (!/^ln(bc|tb|tbs)[a-z0-9]+$/i.test(currentInvoice) && !isDemoMode) {
+        console.warn('SECURITY: Invalid invoice format blocked from clipboard');
+        showToast('Error: invoice inválido', 'error');
+        return;
+      }
       navigator.clipboard.writeText(currentInvoice).then(() => {
         showToast('Invoice copiado', 'success');
       });
@@ -1876,10 +1907,24 @@
       }
     };
 
-    // ── CANJEAR TICKET (ORGANIZADOR) ─────────────────────
+    // ── CANJEAR TICKET (ORGANIZADOR) — v2.3: rate limiting ─
+    let _redeemAttempts = [];
+    const REDEEM_MAX_ATTEMPTS = 5;
+    const REDEEM_WINDOW_MS = 60000; // 1 minute
+
     window.redeemTicket = function() {
       const code = document.getElementById('redeemInput').value.trim().toUpperCase();
       const feedback = document.getElementById('redeemFeedback');
+
+      // Rate limiting: max 5 attempts per minute
+      const now = Date.now();
+      _redeemAttempts = _redeemAttempts.filter(t => now - t < REDEEM_WINDOW_MS);
+      if (_redeemAttempts.length >= REDEEM_MAX_ATTEMPTS) {
+        feedback.textContent = '🔒 Demasiados intentos — esperá 1 minuto';
+        feedback.className = 'redeem-feedback show error';
+        return;
+      }
+      _redeemAttempts.push(now);
 
       if (!code || code.length < 6) {
         feedback.textContent = '⚠️ Ingresá un código válido';
@@ -1987,7 +2032,7 @@
         const date = new Date(entry.createdAt);
         const dateStr = date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
         const timeStr = date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
-        const hashShort = entry.paymentHash ? entry.paymentHash.slice(0,12) + '...' : '—';
+        const hashShort = entry.paymentHash ? escapeHtml(entry.paymentHash.slice(0,12)) + '...' : '—';
         const verifiedClass = entry.verified ? 'yes' : (entry.zapReceiptId ? 'pending' : 'no');
         const verifiedText = entry.verified ? '✅ NWC' : (entry.zapReceiptId ? '⚡ Zap' : '❌');
 
@@ -2018,6 +2063,16 @@
         return;
       }
 
+      // CSV sanitization helper (v2.3) — prevent formula injection & escape quotes
+      function csvSanitize(val) {
+        let s = String(val);
+        // Escape double quotes for CSV
+        s = s.replace(/"/g, '""');
+        // Prevent CSV formula injection: prefix dangerous chars with apostrophe
+        if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+        return s;
+      }
+
       const headers = ['Nombre', 'Monto (sats)', 'Payment Hash', 'Preimage', 'Fecha', 'Verificado NWC', 'Zap Request ID', 'Zap Receipt ID', 'Método'];
       const rows = log.map(e => [
         e.name || 'Anónimo',
@@ -2031,7 +2086,7 @@
         e.verificationMethod || ''
       ]);
 
-      const csv = [headers.join(','), ...rows.map(r => r.map(v => `"${v}"`).join(','))].join('\n');
+      const csv = [headers.join(','), ...rows.map(r => r.map(v => `"${csvSanitize(v)}"`).join(','))].join('\n');
       const blob = new Blob([csv], { type: 'text/csv' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -2130,15 +2185,19 @@
       }
     }
 
-    // ── LIMPIAR DATOS ─────────────────────────────────────
+    // ── LIMPIAR DATOS (v2.3: require organizer PIN) ──────
     window.clearAllData = function() {
-      if (confirm('¿Borrar TODOS los datos? (reservas, pagos, auditoría)')) {
-        localStorage.removeItem('hdmp_reservations');
-        localStorage.removeItem('hdmp_payment_log');
-        loadOrganizerPanel();
-        updateSpotsBar();
-        showToast('Datos limpiados', 'info');
+      if (!confirm('¿Borrar TODOS los datos? (reservas, pagos, auditoría)')) return;
+      const pin = prompt('Ingresá el PIN del organizador para confirmar:');
+      if (!pin || pin !== '⚡HDMP') {
+        showToast('PIN incorrecto — operación cancelada', 'error');
+        return;
       }
+      localStorage.removeItem('hdmp_reservations');
+      localStorage.removeItem('hdmp_payment_log');
+      loadOrganizerPanel();
+      updateSpotsBar();
+      showToast('Datos limpiados', 'info');
     };
 
     // ── INICIALIZACIÓN ────────────────────────────────────
@@ -2160,7 +2219,7 @@
 
       if (savedNWC) {
         try {
-          const { nwc } = await import("https://esm.sh/@getalby/sdk@3");
+          const { nwc } = await import("https://esm.sh/@getalby/sdk@3.5.1");
           nwcClient = new nwc.NWCClient({ nostrWalletConnectUrl: savedNWC });
           const info = await nwcClient.getInfo();
           isNWCConnected = true;

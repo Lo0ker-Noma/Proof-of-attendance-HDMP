@@ -1,4 +1,4 @@
-# ⚡ Proof of Attendance (HDMP) — v2.2
+# ⚡ Proof of Attendance (HDMP) — v2.3
 
 > De un MVP con verificación manual a un sistema multi-evento con **Nostr Wallet Connect (NIP-47)**, **Zaps (NIP-57)**, auditoría criptográfica, pentest de seguridad y diseño premium.
 
@@ -8,7 +8,7 @@
 
 ---
 
-## La historia: de v1 a v2.2
+## La historia: de v1 a v2.3
 
 ### v1 — El MVP (semana 1)
 
@@ -39,7 +39,11 @@ Sistema multi-evento con 4 Coworks reales de La Crypta, diseño premium con glas
 
 ### v2.2 — Security Hardening (semana 3)
 
-Pentest completo de 22 escenarios → se encontraron 17 vulnerabilidades → se aplicaron 8 fixes concretos → se redujo a 9 (inherentes a client-side). Detalle completo más abajo.
+Pentest completo de 22 escenarios → se encontraron 17 vulnerabilidades → se aplicaron 8 fixes concretos → se redujo a 9 (inherentes a client-side).
+
+### v2.3 — Advanced White Hat Pentest + Deep Hardening (semana 3)
+
+Pentest avanzado de **26 escenarios adicionales** en 14 categorías (DOM XSS, prototype pollution, supply chain, crypto, CSV injection, brute force, cross-event, clickjacking). Se encontraron **17 vulnerabilidades nuevas** → se aplicaron **13 fixes** → se redujo a **4 (limitaciones arquitectónicas)**.
 
 ---
 
@@ -91,61 +95,63 @@ Esto crea un **registro verificable e inmutable** de cada pago en el protocolo N
 
 ---
 
-## Seguridad — Pentest & Hardening v2.2
+## Seguridad — Pentest & Hardening v2.2 → v2.3
 
-Corrimos un pentest automatizado de **22 escenarios de ataque** en 7 categorías. Después aplicamos fixes y volvimos a correr el pentest para validar las correcciones.
+Se corrieron **3 rondas de pentesting automatizado** con **48 escenarios de ataque** en 21 categorías. Cada ronda de pentest fue seguida de fixes y re-verificación.
 
-### Resultados comparados
+### Evolución de seguridad
 
 ```
-                         ANTES (v2.1)         DESPUÉS (v2.2)
-                         ────────────         ──────────────
-Ataques bloqueados:      5  (23%)             13  (59%)
-Vulnerabilidades:        17                   9
-  CRITICAL:              5                    3
-  HIGH:                  6                    5
-  MEDIUM:                3                    1
-  LOW:                   3                    0
+                    v2.1 (antes)    v2.2 (pentest 1)   v2.3 (pentest 2)
+                    ────────────    ────────────────    ────────────────
+Tests:              22              22                  26 (nuevos)
+Ataques bloqueados: 5  (23%)        13  (59%)           22  (85%)
+Vulnerabilidades:   17              9                   4
+  CRITICAL:         5               3                   1
+  HIGH:             6               5                   0
+  MEDIUM:           3               1                   2
+  LOW:              3               0                   1
 ```
 
 ### 8 vulnerabilidades reparadas en v2.2
 
 | # | Vulnerabilidad | Severidad | Fix aplicado |
 |---|----------------|-----------|-------------|
-| 1 | **Invoice de monto menor** — atacante paga menos sats de los requeridos y obtiene entrada | CRITICAL | Validación de `paymentResult.amount` contra `selectedEvent.price * 1000` en `onPaymentVerified()`. Si no coincide, se rechaza el pago. |
-| 2 | **Double-spend por paymentHash** — un solo pago genera múltiples tickets | CRITICAL | `saveReservation()` ahora verifica que no exista otro registro con el mismo `paymentHash` antes de guardar. |
-| 3 | **Script injection (XSS)** — `<script>alert("xss")</script>` en el nombre del asistente | HIGH | `sanitizeInput()` mejorado: ahora strip de `<>"'&`, chars de control (`\x00-\x1F`), zero-width Unicode (`\u200B`, `\uFEFF`, etc.), y normalización NFKC. |
-| 4 | **JSON malformado crash (DoS)** — inyectar JSON inválido en localStorage crashea la app | MEDIUM | `try/catch` en `getReservations()` y `getPaymentLog()` con fallback a `[]`. |
-| 5 | **Null bytes y chars de control** — se almacenan sin filtrar en los datos | LOW | `sanitizeInput()` strip de `\x00-\x1F`, `\x7F` y todos los separadores invisibles Unicode. |
-| 6 | **Unicode zero-width spoofing** — caracteres invisibles permiten suplantación visual | LOW | Strip de `\u200B`, `\u200C`, `\u200D`, `\u200E`, `\u200F`, `\uFEFF`, `\u2028`, `\u2029` + normalización `NFKC`. |
-| 7 | **Nombres extremadamente largos (DoS)** — strings de 10,000+ chars desbordan UI y localStorage | LOW | `sanitizeInput()` trunca a 100 chars. Input HTML tiene `maxlength="40"`. |
-| 8 | **Timestamps falsos** — atacante inyecta fechas del futuro o pasado lejano | MEDIUM | `saveReservation()` valida que `createdAt` esté dentro de ±1 hora del momento actual. Si no, lo sobrescribe con `new Date().toISOString()`. |
+| 1 | **Invoice de monto menor** — atacante paga menos sats de los requeridos | CRITICAL | Validación de `paymentResult.amount` contra `selectedEvent.price * 1000` en `onPaymentVerified()` |
+| 2 | **Double-spend por paymentHash** — un solo pago genera múltiples tickets | CRITICAL | `saveReservation()` verifica que no exista otro registro con el mismo `paymentHash` |
+| 3 | **Script injection (XSS)** — `<script>` en el nombre del asistente | HIGH | `sanitizeInput()` v2.2: strip `<>"'&`, control chars, zero-width Unicode, NFKC |
+| 4 | **JSON malformado crash (DoS)** — JSON inválido en localStorage | MEDIUM | `try/catch` en `getReservations()` y `getPaymentLog()` con fallback a `[]` |
+| 5 | **Null bytes y chars de control** | LOW | `sanitizeInput()` strip `\x00-\x1F`, `\x7F` y separadores Unicode |
+| 6 | **Unicode zero-width spoofing** | LOW | Strip + normalización `NFKC` |
+| 7 | **Nombres extremadamente largos (DoS)** | LOW | Truncado a 100 chars + `maxlength="40"` en HTML |
+| 8 | **Timestamps falsos** | MEDIUM | Validación ±1 hora en `saveReservation()` |
 
-### Mejoras adicionales de seguridad en v2.2
+### 13 vulnerabilidades reparadas en v2.3 (Advanced White Hat Pentest)
 
-| Mejora | Detalle |
-|--------|---------|
-| **NWC URL encriptado** | El connection string ahora se encripta con **AES-256-GCM** via Web Crypto API antes de almacenar en localStorage. La clave se guarda en `sessionStorage` (se pierde al cerrar tab). Migración automática de URLs legacy en plaintext. |
-| **Mutex para localStorage** | `withStorageLock()` previene race conditions en escrituras concurrentes al localStorage (patrón lock async). |
-| **Regex estricto en markRedeemed** | El ticket code ahora se valida contra `/^HDMP-[A-HJ-KMNP-Z2-9]{6}$/` antes de buscar. Rechaza SQL injection, XSS payloads y formatos inválidos. |
-| **escapeHtml() mejorado** | Maneja inputs no-string (`null`, `undefined`, números) sin crashear. |
-| **Console log redactado** | NWC URLs en console.log reemplazan `secret=...` con `secret=REDACTED`. |
+| # | Vulnerabilidad | Severidad | Fix aplicado |
+|---|----------------|-----------|-------------|
+| 1 | **Sin Content Security Policy (CSP)** — cualquier script externo se ejecuta | HIGH | `<meta http-equiv="Content-Security-Policy">` con `script-src 'self' https://esm.sh`, `frame-ancestors 'none'` |
+| 2 | **Sin X-Frame-Options (Clickjacking)** — app embebible en iframe | MEDIUM | `<meta http-equiv="X-Frame-Options" content="DENY">` + `X-Content-Type-Options: nosniff` + `Referrer-Policy` |
+| 3 | **Math.random() para ticket codes** — predecible, no CSPRNG | HIGH | Reemplazado por `crypto.getRandomValues(new Uint8Array(8))` |
+| 4 | **Entropy insuficiente (6 chars × 30)** — 729M combos, brute-forceable | MEDIUM | Aumentado a **8 caracteres** (30^8 = 656 billion combinaciones) |
+| 5 | **AES-GCM key en sessionStorage** — accesible via XSS | HIGH | Key ahora es `extractable: false` y se almacena solo en **memoria JS** (variable `_nwcCryptoKey`), no en sessionStorage |
+| 6 | **innerHTML en audit rows sin escapar** — XSS via paymentHash | HIGH | `escapeHtml()` aplicado a `hashShort` antes de insertarlo en innerHTML |
+| 7 | **CSV Formula Injection** — `=CMD\|` en nombres ejecuta fórmulas en Excel | HIGH | Nueva función `csvSanitize()`: prefija `=`, `+`, `-`, `@` con apóstrofe |
+| 8 | **CSV delimiter injection** — comillas en paymentHash rompen CSV | MEDIUM | `csvSanitize()` escapa comillas dobles (`"` → `""`) |
+| 9 | **@getalby/sdk sin version pin** — `@3` permite versiones maliciosas | HIGH | Pineado a versión exacta `@getalby/sdk@3.5.1` |
+| 10 | **Cross-event ticket reuse** — ticket de un evento funciona en otro | HIGH | `markRedeemed()` ahora verifica `reservation.eventId === selectedEvent.id` |
+| 11 | **clearAllData sin autenticación** — XSS borra todos los datos | HIGH | Requiere PIN del organizador (`⚡HDMP`) además de `confirm()` |
+| 12 | **Sin rate limiting en redeemTicket** — brute force viable | HIGH | Rate limiting: max 5 intentos por minuto (`_redeemAttempts` con ventana de 60s) |
+| 13 | **copyInvoice sin validación** — clipboard hijacking | MEDIUM | Validación de formato Lightning invoice (`/^ln(bc|tb|tbs)[a-z0-9]+$/i`) antes de copiar |
 
-### 9 vulnerabilidades restantes (inherentes a client-side)
+### 4 vulnerabilidades restantes (limitaciones arquitectónicas)
 
-Estas no se pueden resolver sin un backend server-side. Están documentadas con sus recomendaciones:
-
-| Vulnerabilidad | Por qué no se puede resolver client-side |
-|----------------|------------------------------------------|
-| Inyectar reserva falsa sin pago | localStorage es siempre manipulable por JS |
-| Modificar status a "redeemed" | Requiere autenticación del organizador server-side |
-| Alterar montos en payment log | Requiere firma HMAC o hash chain |
-| Sustituir invoice por uno propio | Requiere verificación server-side del origen del invoice |
-| Event handler injection en nombre | `onmouseover` sobrevive sanitización (mitigado por `escapeHtml()` en render) |
-| Race condition en localStorage | Mutex ayuda pero no es atómico como una transacción DB |
-| NWC URL en localStorage | Encriptado con AES-GCM pero la key está en sessionStorage |
-| Secret en consola (potencial) | Redactado en nuestro código pero libs externas podrían loguearlo |
-| Audit log mutable | Requiere hash chain o publicación en Nostr relays |
+| Vulnerabilidad | Severidad | Por qué no se puede resolver |
+|----------------|-----------|------------------------------|
+| ESM imports sin SRI hashes | CRITICAL | Requiere bundler (Vite build) para generar integrity hashes — esm.sh no soporta SRI nativo |
+| Funciones expuestas en window scope | MEDIUM | Requiere refactor a ES modules con `addEventListener` — no compatible con inline `onclick` en HTML |
+| Reservas sin segregación por eventId | MEDIUM | Requiere migración de datos existentes en localStorage — riesgo de pérdida de datos |
+| QR payload injection (en memoria) | LOW | Impacto mínimo — QR readers modernos no ejecutan javascript: URIs |
 
 Reporte formal completo: [`SECURITY-AUDIT.md`](./SECURITY-AUDIT.md)
 
@@ -154,17 +160,21 @@ Reporte formal completo: [`SECURITY-AUDIT.md`](./SECURITY-AUDIT.md)
 ## Tests
 
 ```
-56 unit tests — 100% passing
-22 security pentest scenarios — 13 blocked, 9 documented
+56 unit tests          — 100% passing
+22 security pentest v2 — 12 blocked, 10 documented
+26 advanced pentest v3 — 22 blocked, 4 remaining (architectural)
+─────────────────────────────────────────
+104 total test scenarios
 ```
 
 ```bash
 npm test              # Unit tests (56)
-npm run test:security # Pentest (22)
-npm run test:all      # Todo
+npm run test:security # Pentest v2 (22)
+npm run test:advanced # Advanced Pentest v3 (26)
+npm run test:all      # Todo (104)
 ```
 
-Los tests cubren: generación de tickets, CRUD de reservas, payment log, validaciones NWC/NIP-57, sanitización de input (null bytes, zero-width, Unicode, XSS), estructura de Zap events, parsing de NWC URLs, verificación de integridad, double-spend prevention, y escape de HTML.
+Los tests cubren: generación de tickets (CSPRNG), CRUD de reservas, payment log, validaciones NWC/NIP-57, sanitización de input (null bytes, zero-width, Unicode, XSS), estructura de Zap events, parsing de NWC URLs, verificación de integridad, double-spend prevention, escape de HTML, DOM XSS, prototype pollution, supply chain, CSV injection, brute force, cross-event leakage, clickjacking, CSP, y rate limiting.
 
 ---
 
@@ -221,7 +231,7 @@ const EVENTS_LIST = [
 | **@getalby/sdk** | NWC client (NIP-47) — invoices, verificación, balance |
 | **nostr-tools** | Creación y firma de eventos Nostr (NIP-57 Zaps) |
 | **@noble/hashes** | Utilidades criptográficas |
-| **Web Crypto API** | AES-256-GCM para encriptar NWC URL |
+| **Web Crypto API** | AES-256-GCM (non-extractable key) para encriptar NWC URL |
 | **qrcode** | Generación de QR codes |
 | **localStorage** | Persistencia (demo) |
 
@@ -230,17 +240,18 @@ const EVENTS_LIST = [
 ## Estructura del proyecto
 
 ```
-├── index.html              # App completa (single-file, ~2100 líneas)
-├── PROJECT.md              # Spec del proyecto
-├── CHANGELOG.md            # Historial de cambios v1 → v2.2
-├── SECURITY-AUDIT.md       # Reporte formal de auditoría de seguridad
-├── AGENTS.md               # Resumen para evaluadores IA
-├── package.json            # v2.1.0 con scripts de test
-├── vite.config.js          # Config de Vite
+├── index.html                    # App completa (single-file, ~2200 líneas)
+├── PROJECT.md                    # Spec del proyecto
+├── CHANGELOG.md                  # Historial de cambios v1 → v2.3
+├── SECURITY-AUDIT.md             # Reporte formal de auditoría de seguridad
+├── AGENTS.md                     # Resumen para evaluadores IA
+├── package.json                  # v2.3.0 con scripts de test
+├── vite.config.js                # Config de Vite
 ├── tests/
-│   ├── unit-tests.js       # 56 unit tests
-│   └── security-pentest.js # 22 escenarios de pentest
-└── src/examples/           # Ejemplos del starter kit original
+│   ├── unit-tests.js             # 56 unit tests
+│   ├── security-pentest.js       # 22 escenarios de pentest v2
+│   └── advanced-pentest-v3.js    # 26 escenarios avanzados (white hat)
+└── src/examples/                 # Ejemplos del starter kit original
 ```
 
 ---

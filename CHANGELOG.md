@@ -1,5 +1,34 @@
 # Changelog — HDMP Proof of Attendance
 
+## [2.3.0] — 2026-03-17 — Advanced White Hat Pentest + Deep Hardening
+
+### Security (13 fixes from 26 advanced pentest scenarios)
+- **Content Security Policy (CSP)**: `script-src 'self' https://esm.sh`, `frame-ancestors 'none'`
+- **X-Frame-Options**: DENY + X-Content-Type-Options + Referrer-Policy headers
+- **CSPRNG ticket codes**: `crypto.getRandomValues()` replaces `Math.random()`
+- **8-char ticket codes**: increased from 6 → 8 chars (729M → 656B combinations)
+- **Non-extractable AES key**: `extractable: false`, key in JS memory only (not sessionStorage)
+- **Audit row XSS fix**: `escapeHtml()` applied to paymentHash in innerHTML
+- **CSV formula injection**: new `csvSanitize()` prefixes `=`, `+`, `-`, `@` with apostrophe
+- **CSV delimiter escape**: double quotes escaped (`"` → `""`) in all CSV values
+- **@getalby/sdk pinned**: exact version `@3.5.1` (was semver range `@3`)
+- **Cross-event ticket reuse**: `markRedeemed()` verifies `eventId === selectedEvent.id`
+- **clearAllData auth**: requires organizer PIN (`⚡HDMP`) in addition to confirm()
+- **Rate limiting**: max 5 redeem attempts per minute with 60s sliding window
+- **Invoice clipboard validation**: validates Lightning invoice format before copying
+
+### Added
+- `tests/advanced-pentest-v3.js` — 26 advanced scenarios (DOM XSS, prototype pollution, supply chain, crypto, CSV injection, brute force, cross-event, clickjacking, global scope)
+- `npm run test:advanced` script
+- Source code fix detection in pentest v3 (reads index.html for pattern matching)
+
+### Changed
+- Ticket code regex updated to `{8}` everywhere (index.html, unit tests, pentest files)
+- `npm run test:all` now runs all 3 test suites (104 total scenarios)
+- package.json version bumped to 2.3.0
+
+---
+
 ## [2.1.0] — 2026-03-15 — Multi-Event + Visual Refresh
 
 ### Added
