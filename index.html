@@ -1660,8 +1660,21 @@
           description: `HDMP Reserva — ${currentName} — ${selectedEvent.name} ${selectedEvent.dateShort}`
         });
 
-        currentInvoice = invoiceResult.paymentRequest;
-        currentPaymentHash = invoiceResult.paymentHash;
+        // Normalize field names — different NWC implementations use different keys
+        console.log('NWC makeInvoice result keys:', Object.keys(invoiceResult));
+        currentInvoice = invoiceResult.paymentRequest || invoiceResult.payment_request || invoiceResult.invoice || invoiceResult.bolt11 || '';
+        currentPaymentHash = invoiceResult.paymentHash || invoiceResult.payment_hash || '';
+
+        if (!currentInvoice) {
+          console.error('NWC makeInvoice returned no invoice. Full result:', JSON.stringify(invoiceResult));
+          showToast('Error: la wallet no devolvió un invoice válido', 'error');
+          btn.disabled = false;
+          btn.textContent = '⚡ Generar Invoice via NWC';
+          return;
+        }
+
+        console.log('Invoice generated:', currentInvoice.slice(0, 40) + '...');
+        console.log('Payment hash:', currentPaymentHash.slice(0, 16) + '...');
 
         // Show QR
         const canvas = document.getElementById('invoiceQR');
@@ -1714,8 +1727,15 @@
             payment_hash: currentPaymentHash
           });
 
-          if (result && (result.preimage || result.settled_at)) {
+          // Normalize field names from different NWC implementations
+          const preimage = result?.preimage || result?.payment_preimage || null;
+          const settledAt = result?.settled_at || result?.settledAt || null;
+
+          if (result && (preimage || settledAt)) {
             clearInterval(paymentCheckInterval);
+            // Normalize the result object
+            result.preimage = preimage;
+            result.settled_at = settledAt;
             await onPaymentVerified(result);
           } else {
             document.getElementById('waitingText').textContent =
@@ -1724,7 +1744,7 @@
         } catch (err) {
           console.log('Lookup error (retry):', err.message);
         }
-      }, isDemoMode ? 2000 : 5000);
+      }, 5000);
     }
 
     async function onPaymentVerified(paymentResult) {
