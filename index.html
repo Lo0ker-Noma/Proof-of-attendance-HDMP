@@ -774,39 +774,7 @@
   <!-- ════════════════════════════════════════
        VISTA 0: NWC SETUP
   ════════════════════════════════════════ -->
-  <div id="view-nwc-setup" class="view">
-    <div class="nwc-setup-card">
-      <div class="nwc-icon">🔌</div>
-      <div class="nwc-title">Conectar Wallet (NWC)</div>
-      <div class="nwc-desc">
-        Para usar HDMP v2, necesitás conectar tu wallet via Nostr Wallet Connect (NIP-47).
-        Esto permite crear invoices, verificar pagos automáticamente y registrar Zaps.
-      </div>
-
-      <div class="input-group" style="text-align:left">
-        <label class="input-label">NWC Connection String</label>
-        <textarea id="nwcInput" rows="3" placeholder="nostr+walletconnect://..." style="font-size:0.8rem;font-family:monospace;resize:vertical"></textarea>
-      </div>
-
-      <button class="btn btn-nwc" id="nwcConnectBtn" onclick="connectNWC()">
-        🔗 Conectar Wallet
-      </button>
-
-      <!-- Demo mode disabled for live event
-      <button class="btn btn-secondary" onclick="useDemoMode()">
-        🎮 Modo Demo (sin wallet real)
-      </button>
-      -->
-    </div>
-
-    <div class="card" style="font-size:0.85rem;color:rgba(255,255,255,0.5);line-height:1.8">
-      <strong style="color:#fff">¿Cómo obtengo mi NWC string?</strong><br>
-      1. Andá a <strong>getalby.com</strong> o tu wallet NWC compatible<br>
-      2. Settings → Nostr Wallet Connect<br>
-      3. Create new connection (con permisos: make_invoice, lookup_invoice, get_balance, list_transactions)<br>
-      4. Copiá el string que empieza con <code style="color:#c4b5fd">nostr+walletconnect://</code>
-    </div>
-  </div>
+  <!-- Old NWC setup view removed in v2.5 — NWC input is now inline on event page -->
 
   <!-- ════════════════════════════════════════
        VISTA 1: EVENTO
@@ -1109,7 +1077,7 @@
     <button class="btn btn-secondary" style="margin-top: 24px" onclick="showView('event')">
       ← Ver el evento
     </button>
-    <button class="btn btn-secondary" onclick="showView('nwc-setup')">
+    <button class="btn btn-secondary" onclick="showView('event'); var ex=document.getElementById('nwcInlineExpand'); if(ex) ex.style.display='block';">
       🔌 Reconfigurar NWC
     </button>
     <button class="btn btn-secondary" style="color: #ff6b6b" onclick="clearAllData()">
@@ -1470,7 +1438,7 @@
         if (expand) expand.style.display = 'block';
         return;
       }
-      if (!isNWCConnected && viewId !== 'nwc-setup' && viewId !== 'event') {
+      if (!isNWCConnected && viewId !== 'event') {
         viewId = 'event';
       }
 
