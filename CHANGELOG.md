@@ -16,12 +16,16 @@
 - **Enhanced debug logging** — First 5 lookupInvoice responses logged in full for troubleshooting
 
 ### Fixed
+- **False payment confirmation** — `isPaid` heuristic was too loose: `amount > 0 + created_at` triggered on unpaid invoices. Now requires STRONG signals only: preimage (32+ chars), numeric `settled_at > 0`, explicit state "settled"/"paid", or `paid === true`
+- **nwcMock auto-confirming** — Demo mock `lookupInvoice` auto-confirmed after 3 checks. Mock removed entirely — zero fake payments possible
 - **Duplicate element ID bug** — Two `<textarea id="nwcInput">` existed (old screen + new inline), causing `getElementById` to read from the wrong (empty) element. Old view removed entirely.
 - **Hardcoded "1,000 sats"** in 3 payment flow locations — Now updates dynamically from `selectedEvent.price`
 - **Static USD price ($0.60)** — Replaced with live calculation via mempool.space API
 - **"No input text" QR error** — `makeInvoice` response field normalized (`paymentRequest` / `payment_request` / `invoice` / `bolt11`)
-- **Payment auto-confirming in demo mode** — Demo mock removed, all payments now require real NWC verification
 - **La Crypta logo blocked by CSP** — Added `https://avatars.githubusercontent.com` to `img-src` policy
+
+### Security
+- **NWC secret ofuscado** — Base64 encoded in source, decoded at runtime via `atob()`. Not in plaintext in repo.
 
 ### Changed
 - Event prices set to 10 sats for live testing (configurable in `EVENTS_LIST`)
