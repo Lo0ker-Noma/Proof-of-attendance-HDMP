@@ -1,4 +1,4 @@
-# ⚡ Proof of Attendance (HDMP) — v2.3
+# ⚡ Proof of Attendance (HDMP) — v2.5
 
 > De un MVP con verificación manual a un sistema multi-evento con **Nostr Wallet Connect (NIP-47)**, **Zaps (NIP-57)**, auditoría criptográfica, pentest de seguridad y diseño premium.
 
@@ -8,7 +8,7 @@
 
 ---
 
-## La historia: de v1 a v2.3
+## La historia: de v1 a v2.5
 
 ### v1 — El MVP (semana 1)
 
@@ -44,6 +44,10 @@ Pentest completo de 22 escenarios → se encontraron 17 vulnerabilidades → se 
 ### v2.3 — Advanced White Hat Pentest + Deep Hardening (semana 3)
 
 Pentest avanzado de **26 escenarios adicionales** en 14 categorías (DOM XSS, prototype pollution, supply chain, crypto, CSV injection, brute force, cross-event, clickjacking). Se encontraron **17 vulnerabilidades nuevas** → se aplicaron **13 fixes** → se redujo a **4 (limitaciones arquitectónicas)**.
+
+### v2.5 — Production Live Mode (semana 3)
+
+App lista para producción con pagos reales. NWC inline en la página principal (sin pantalla separada), verificación de pagos robusta compatible con Primal/Alby/Mutiny, demo mode desactivado, conversión sats→USD en tiempo real via mempool.space.
 
 ---
 

@@ -4,11 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- Security Headers (v2.3) -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://esm.sh; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://esm.sh wss://* https://*; img-src 'self' data: blob:; frame-ancestors 'none';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://esm.sh; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://esm.sh wss://* https://*; img-src 'self' data: blob: https://avatars.githubusercontent.com; frame-ancestors 'none';">
   <meta http-equiv="X-Frame-Options" content="DENY">
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
   <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
-  <title>⚡ Proof of Attendance — HDMP v2</title>
+  <title>⚡ Proof of Attendance — HDMP v2.5</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
@@ -759,7 +759,7 @@
 
   <!-- HEADER -->
   <header>
-    <div class="logo">⚡ <span>HDMP</span> <span class="version">v2 · NWC + Zaps</span></div>
+    <div class="logo">⚡ <span>HDMP</span> <span class="version">v2.5 · NWC + Zaps</span></div>
     <div class="header-links">
       <div class="nwc-status" id="nwcStatus">
         <div class="nwc-dot disconnected" id="nwcDot"></div>
@@ -822,10 +822,30 @@
       </div>
     </div>
 
-    <div style="display:flex;align-items:center;gap:6px;margin-bottom:24px">
-      <span class="nip-badge nwc">NWC (NIP-47)</span>
-      <span style="color:var(--text-dim);font-size:0.8rem">+</span>
-      <span class="nip-badge zap">Zaps (NIP-57)</span>
+    <!-- NWC Connection Box (inline on event page) -->
+    <div id="nwcInlineBox" class="price-box" style="margin-bottom:16px;cursor:pointer" onclick="document.getElementById('nwcInlineExpand').style.display = document.getElementById('nwcInlineExpand').style.display === 'none' ? 'block' : 'none'">
+      <div>
+        <div class="price-label">🔌 Wallet NWC</div>
+        <div class="price-sub" id="nwcInlineStatus" style="color:#ff6b6b">Sin conectar — tocá para configurar</div>
+      </div>
+      <div style="text-align:right">
+        <div style="display:flex;align-items:center;gap:4px">
+          <span class="nip-badge nwc" style="font-size:0.65rem;padding:2px 6px">NIP-47</span>
+          <span class="nip-badge zap" style="font-size:0.65rem;padding:2px 6px">NIP-57</span>
+        </div>
+      </div>
+    </div>
+    <div id="nwcInlineExpand" style="display:none;margin-bottom:16px">
+      <div class="card" style="padding:14px">
+        <textarea id="nwcInput" rows="2" placeholder="nostr+walletconnect://..." style="font-size:0.75rem;font-family:monospace;resize:vertical;width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;padding:8px;margin-bottom:8px"></textarea>
+        <button class="btn btn-nwc" id="nwcConnectBtn" onclick="connectNWC()" style="width:100%;padding:10px;font-size:0.85rem">
+          🔗 Conectar Wallet
+        </button>
+        <div style="font-size:0.7rem;color:var(--text-dim);margin-top:8px;line-height:1.5">
+          Obtené tu NWC string en <strong>getalby.com</strong>, <strong>Primal</strong>, o tu wallet NWC compatible.
+          Permisos: make_invoice, lookup_invoice, get_balance.
+        </div>
+      </div>
     </div>
 
     <div id="selectedEventDetail">
@@ -1426,13 +1446,32 @@
       const statusText = document.getElementById('nwcStatusText');
       dot.className = 'nwc-dot ' + (connected ? 'connected' : 'disconnected');
       statusText.textContent = text || (connected ? 'Conectada' : 'Sin wallet');
+      // Update inline NWC box on event page
+      const inlineStatus = document.getElementById('nwcInlineStatus');
+      if (inlineStatus) {
+        if (connected) {
+          inlineStatus.textContent = `✅ ${text || 'Wallet conectada'}`;
+          inlineStatus.style.color = '#00ff9d';
+          document.getElementById('nwcInlineExpand').style.display = 'none';
+        } else {
+          inlineStatus.textContent = 'Sin conectar — tocá para configurar';
+          inlineStatus.style.color = '#ff6b6b';
+        }
+      }
     }
 
     // ── NAVEGACIÓN ENTRE VISTAS ───────────────────────────
     window.showView = function(viewId) {
-      // If trying to access payment views without NWC, redirect to setup
-      if (!isNWCConnected && viewId !== 'nwc-setup') {
-        viewId = 'nwc-setup';
+      // Allow event view without NWC, but block reserve/payment without wallet
+      if (!isNWCConnected && viewId === 'reserve') {
+        showToast('Primero conectá tu wallet NWC arriba', 'error');
+        // Expand the inline NWC box
+        const expand = document.getElementById('nwcInlineExpand');
+        if (expand) expand.style.display = 'block';
+        return;
+      }
+      if (!isNWCConnected && viewId !== 'nwc-setup' && viewId !== 'event') {
+        viewId = 'event';
       }
 
       document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
@@ -1727,15 +1766,27 @@
             payment_hash: currentPaymentHash
           });
 
+          // Debug: log full response on first check and every 10th
+          if (checks === 1 || checks % 10 === 0) {
+            console.log(`lookupInvoice check #${checks}:`, JSON.stringify(result, null, 2));
+          }
+
           // Normalize field names from different NWC implementations
           const preimage = result?.preimage || result?.payment_preimage || null;
-          const settledAt = result?.settled_at || result?.settledAt || null;
+          const settledAt = result?.settled_at || result?.settledAt || result?.settled || null;
+          // Some wallets use 'paid' boolean or 'state'/'status' string
+          const isPaid = preimage || settledAt ||
+            result?.paid === true ||
+            result?.state === 'settled' || result?.state === 'SETTLED' ||
+            result?.status === 'settled' || result?.status === 'SETTLED' ||
+            result?.type === 'settled';
 
-          if (result && (preimage || settledAt)) {
+          if (result && isPaid) {
             clearInterval(paymentCheckInterval);
             // Normalize the result object
-            result.preimage = preimage;
-            result.settled_at = settledAt;
+            result.preimage = preimage || result?.preimage || 'verified';
+            result.settled_at = settledAt || Math.floor(Date.now() / 1000);
+            console.log('Payment verified!', JSON.stringify(result));
             await onPaymentVerified(result);
           } else {
             document.getElementById('waitingText').textContent =
@@ -2291,10 +2342,10 @@
           showView('event');
         } catch (e) {
           console.log('NWC restore failed:', e.message);
-          showView('nwc-setup');
+          showView('event'); // Show event page, NWC input is inline now
         }
       } else {
-        showView('nwc-setup');
+        showView('event'); // Show event page, NWC input is inline now
       }
 
       if (location.hash === '#organizer') showView('organizer');
