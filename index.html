@@ -1730,24 +1730,32 @@
         }
 
         try {
-          const result = await nwcClient.lookupInvoice({
+          let result = await nwcClient.lookupInvoice({
             payment_hash: currentPaymentHash
           });
 
-          // Debug: log full response on first check and every 10th
-          if (checks === 1 || checks % 10 === 0) {
-            console.log(`lookupInvoice check #${checks}:`, JSON.stringify(result, null, 2));
+          // Debug: log first 5 checks and then every 10th
+          if (checks <= 5 || checks % 10 === 0) {
+            console.log(`lookupInvoice check #${checks} raw:`, JSON.stringify(result, null, 2));
           }
+
+          // NIP-47 responses may wrap the actual data in .result or .response
+          if (result?.result && typeof result.result === 'object') result = result.result;
+          if (result?.response && typeof result.response === 'object') result = result.response;
 
           // Normalize field names from different NWC implementations
           const preimage = result?.preimage || result?.payment_preimage || null;
           const settledAt = result?.settled_at || result?.settledAt || result?.settled || null;
+          const amountPaid = result?.amount_msats || result?.amount_msat || result?.amount || result?.amt_paid_sat || result?.amt_paid_msat || 0;
           // Some wallets use 'paid' boolean or 'state'/'status' string
           const isPaid = preimage || settledAt ||
             result?.paid === true ||
             result?.state === 'settled' || result?.state === 'SETTLED' ||
             result?.status === 'settled' || result?.status === 'SETTLED' ||
-            result?.type === 'settled';
+            result?.status === 'paid' || result?.status === 'PAID' ||
+            result?.state === 'paid' || result?.state === 'PAID' ||
+            result?.type === 'settled' ||
+            (amountPaid > 0 && (result?.settled_at || result?.settledAt || result?.created_at));
 
           if (result && isPaid) {
             clearInterval(paymentCheckInterval);
