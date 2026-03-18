@@ -2372,31 +2372,38 @@
     })();
   </script>
 
-  <!-- Dot grid background renderer -->
+  <!-- Dot grid background renderer (animated upward flow) -->
   <script>
   (function() {
     const canvas = document.getElementById('dotsCanvas');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
+    const spacing = 140;
+    const speed = 0.3; // pixels per frame
+    let offset = 0;
+    let w, h, cx, cy, maxDist;
 
-    function draw() {
-      const w = window.innerWidth;
-      const h = window.innerHeight;
+    function resize() {
+      w = window.innerWidth;
+      h = window.innerHeight;
       canvas.width = w * dpr;
       canvas.height = h * dpr;
       canvas.style.width = w + 'px';
       canvas.style.height = h + 'px';
-      ctx.scale(dpr, dpr);
+      cx = w / 2;
+      cy = h * 0.45;
+      maxDist = Math.max(w, h) * 0.85;
+    }
 
-      const spacing = 140;
-      const cx = w / 2;
-      const cy = h * 0.45;
-      const maxDist = Math.max(w, h) * 0.85;
+    function frame() {
+      offset = (offset + speed) % spacing;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
 
-      // Layer 1 — main bright dots
+      // Layer 1 — main dots flowing up
       for (let x = spacing / 2; x < w; x += spacing) {
-        for (let y = spacing / 2; y < h; y += spacing) {
+        for (let y = -spacing + (spacing / 2) - offset; y < h + spacing; y += spacing) {
           const dx = x - cx;
           const dy = y - cy;
           const dist = Math.sqrt(dx * dx + dy * dy);
@@ -2410,9 +2417,10 @@
         }
       }
 
-      // Layer 2 — offset subtler dots
+      // Layer 2 — offset subtler dots (slightly slower)
+      const offset2 = (offset * 0.6) % spacing;
       for (let x = spacing; x < w; x += spacing) {
-        for (let y = spacing; y < h; y += spacing) {
+        for (let y = -spacing + spacing - offset2; y < h + spacing; y += spacing) {
           const dx = x - cx;
           const dy = y - cy;
           const dist = Math.sqrt(dx * dx + dy * dy);
@@ -2425,10 +2433,13 @@
           ctx.fill();
         }
       }
+
+      requestAnimationFrame(frame);
     }
 
-    draw();
-    window.addEventListener('resize', draw);
+    resize();
+    window.addEventListener('resize', resize);
+    requestAnimationFrame(frame);
   })();
   </script>
 
