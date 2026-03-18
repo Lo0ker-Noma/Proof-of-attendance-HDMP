@@ -27,10 +27,10 @@
       --cyan: #06b6d4;
       --bg-primary: #050508;
       --bg-secondary: #0a0a10;
-      --bg-card: rgba(255,255,255,0.03);
-      --bg-glass: rgba(255,255,255,0.045);
-      --border: rgba(255,255,255,0.08);
-      --border-glass: rgba(255,255,255,0.12);
+      --bg-card: rgba(255,255,255,0.015);
+      --bg-glass: rgba(255,255,255,0.025);
+      --border: rgba(255,255,255,0.06);
+      --border-glass: rgba(255,255,255,0.09);
       --text: #f1f5f9;
       --text-muted: rgba(255,255,255,0.55);
       --text-dim: rgba(255,255,255,0.3);
@@ -129,9 +129,9 @@
       justify-content: space-between;
       padding: 14px 28px;
       border-bottom: 1px solid var(--border-glass);
-      background: rgba(8,8,15,0.45);
-      backdrop-filter: var(--glass-blur);
-      -webkit-backdrop-filter: var(--glass-blur);
+      background: rgba(8,8,15,0.25);
+      backdrop-filter: blur(40px) saturate(1.8);
+      -webkit-backdrop-filter: blur(40px) saturate(1.8);
       position: sticky;
       top: 0;
       z-index: 10;
@@ -178,19 +178,19 @@
 
     /* ── CARDS (liquid glass) ── */
     .card {
-      background: var(--bg-glass);
-      border: 1px solid var(--border-glass);
+      background: rgba(255,255,255,0.018);
+      border: 1px solid rgba(255,255,255,0.07);
       border-radius: var(--radius-lg);
       padding: 28px 24px;
       margin-bottom: 16px;
-      backdrop-filter: var(--glass-blur);
-      -webkit-backdrop-filter: var(--glass-blur);
-      box-shadow: 0 8px 32px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.06);
+      backdrop-filter: blur(48px) saturate(1.6);
+      -webkit-backdrop-filter: blur(48px) saturate(1.6);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.04);
       transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
     }
     .card:hover {
-      border-color: rgba(255,255,255,0.18);
-      box-shadow: 0 12px 40px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.08);
+      border-color: rgba(255,255,255,0.12);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.06);
       transform: translateY(-1px);
     }
 
@@ -256,17 +256,17 @@
     .event-info .icon { font-size: 1.15rem; width: 28px; text-align: center; }
 
     .price-box {
-      background: rgba(247,147,26,0.06);
-      border: 1px solid rgba(247,147,26,0.15);
+      background: rgba(247,147,26,0.03);
+      border: 1px solid rgba(247,147,26,0.1);
       border-radius: var(--radius-md);
       padding: 18px 22px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       margin-bottom: 20px;
-      backdrop-filter: var(--glass-blur);
-      -webkit-backdrop-filter: var(--glass-blur);
-      box-shadow: 0 4px 20px rgba(0,0,0,0.15), inset 0 1px 0 rgba(247,147,26,0.08);
+      backdrop-filter: blur(44px) saturate(1.6);
+      -webkit-backdrop-filter: blur(44px) saturate(1.6);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.12), inset 0 1px 0 rgba(247,147,26,0.05);
       transition: border-color 0.3s, box-shadow 0.3s, transform 0.3s;
     }
     .price-box:hover {
