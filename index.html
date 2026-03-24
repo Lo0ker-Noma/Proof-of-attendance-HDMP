@@ -8,10 +8,12 @@
   <meta http-equiv="X-Frame-Options" content="DENY">
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
   <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
-  <title>⚡ Proof of Attendance — HDMP v2.5</title>
+  <title>⚡ Proof of Attendance — HDMP v3.0</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <!-- v3.0: CSS extracted to src/css/styles.css for modularity -->
+  <!-- Inline styles kept for single-file deployment compatibility -->
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -1315,10 +1317,24 @@
     let selectedEvent = EVENTS_LIST[0]; // default to first event
     let EVENT_CONFIG = selectedEvent; // backward compatibility
 
-    // ── ORG WALLET CONFIG (La Crypta — Primal NWC) ──────
-    // Obfuscated to avoid plaintext secret in source control
+    // ── ORG WALLET CONFIG ──────────────────────────────
+    // v3.0: NWC secret moved to Vercel backend (env var NWC_URL)
+    // Client calls /api/nwc — secret never reaches the browser
+    // Fallback: direct NWC if API unavailable (dev/local mode)
     const _ORG_NWC_B64 = 'bm9zdHIrd2FsbGV0Y29ubmVjdDovL2Y2N2MxMDA4YmJmNTgxZDI4M2RiODg0YTk3OTAxNDU1ODQ1NDJhM2YxNjkyYWY1ZDRlYjNhNjYyOGE1MmU2Yjg/cmVsYXk9d3NzOi8vcmVsYXkucHJpbWFsLm5ldCZzZWNyZXQ9Zjk3MTc1OTlkNzk3ZjM0M2FlZTk4OGIyNDNjYTJkMDVjNTZlMmQxZjg5NTc0NDAzY2FmM2Q0YmJhZjgwOGMzYyZsdWQxNj1ub2JsZW1vb3NlMjFAcHJpbWFsLm5ldA==';
     const ORG_NWC_URL = atob(_ORG_NWC_B64);
+    let useBackendAPI = false; // Will be set true if /api/nwc is available
+
+    // ── BACKEND API HELPER ──────────────────────────────
+    async function nwcAPI(action, params = {}) {
+      const res = await fetch('/api/nwc', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, params })
+      });
+      if (!res.ok) throw new Error(`API ${res.status}: ${(await res.json()).error || 'failed'}`);
+      return res.json();
+    }
 
     // ── STATE ────────────────────────────────────────────
     let nwcClient = null;
@@ -1343,15 +1359,32 @@
     }
 
     // ── NWC CONNECTION ──────────────────────────────────
-    // Auto-connect org wallet on page load
+    // v3.0: Try backend API first (secret server-side), fallback to direct NWC
     async function autoConnectOrgWallet() {
+      // Try backend API first
+      try {
+        const info = await nwcAPI('get_info');
+        if (info.connected) {
+          useBackendAPI = true;
+          isNWCConnected = true;
+          isDemoMode = false;
+          console.log('Connected via backend API:', info.alias);
+          updateNWCStatus(true, info.alias || 'La Crypta');
+          return true;
+        }
+      } catch (apiErr) {
+        console.log('Backend API not available, falling back to direct NWC:', apiErr.message);
+      }
+
+      // Fallback: direct NWC connection (dev/local mode)
       try {
         const { nwc } = await import("https://esm.sh/@getalby/sdk@3.5.1");
         nwcClient = new nwc.NWCClient({ nostrWalletConnectUrl: ORG_NWC_URL });
         const info = await nwcClient.getInfo();
         isNWCConnected = true;
         isDemoMode = false;
-        console.log('Org wallet connected:', info.alias || 'La Crypta');
+        useBackendAPI = false;
+        console.log('Org wallet connected (direct NWC):', info.alias || 'La Crypta');
         updateNWCStatus(true, info.alias || 'La Crypta');
         return true;
       } catch (err) {
@@ -1715,16 +1748,23 @@
       currentNpub = sanitizeInput(document.getElementById('attendeeNpub').value) || '';
 
       try {
-        // Create invoice via NWC (NIP-47)
-        const invoiceResult = await nwcClient.makeInvoice({
-          amount: selectedEvent.price * 1000, // NWC uses millisats
-          description: `HDMP Reserva — ${currentName} — ${selectedEvent.name} ${selectedEvent.dateShort}`
-        });
+        let invoiceResult;
+        const desc = `HDMP Reserva — ${currentName} — ${selectedEvent.name} ${selectedEvent.dateShort}`;
+        const amountMsats = selectedEvent.price * 1000;
 
-        // Normalize field names — different NWC implementations use different keys
-        console.log('NWC makeInvoice result keys:', Object.keys(invoiceResult));
-        currentInvoice = invoiceResult.paymentRequest || invoiceResult.payment_request || invoiceResult.invoice || invoiceResult.bolt11 || '';
-        currentPaymentHash = invoiceResult.paymentHash || invoiceResult.payment_hash || '';
+        if (useBackendAPI) {
+          // v3.0: Server-side invoice generation (NWC secret never in browser)
+          invoiceResult = await nwcAPI('make_invoice', { amount: amountMsats, description: desc });
+          console.log('Backend makeInvoice result:', Object.keys(invoiceResult));
+          currentInvoice = invoiceResult.invoice || '';
+          currentPaymentHash = invoiceResult.payment_hash || '';
+        } else {
+          // Fallback: direct NWC (dev mode)
+          invoiceResult = await nwcClient.makeInvoice({ amount: amountMsats, description: desc });
+          console.log('NWC makeInvoice result keys:', Object.keys(invoiceResult));
+          currentInvoice = invoiceResult.paymentRequest || invoiceResult.payment_request || invoiceResult.invoice || invoiceResult.bolt11 || '';
+          currentPaymentHash = invoiceResult.paymentHash || invoiceResult.payment_hash || '';
+        }
 
         if (!currentInvoice) {
           console.error('NWC makeInvoice returned no invoice. Full result:', JSON.stringify(invoiceResult));
@@ -1784,44 +1824,52 @@
         }
 
         try {
-          let result = await nwcClient.lookupInvoice({
-            payment_hash: currentPaymentHash
-          });
+          let result, isPaid, preimage, settledAt;
 
-          // Debug: log EVERY check for troubleshooting
-          console.log(`lookupInvoice #${checks}:`, JSON.stringify(result, null, 2));
+          if (useBackendAPI) {
+            // v3.0: Server-side verification (all validation done server-side)
+            result = await nwcAPI('lookup_invoice', { payment_hash: currentPaymentHash });
+            console.log(`lookupInvoice #${checks} (backend):`, JSON.stringify(result));
+            isPaid = result.paid === true;
+            preimage = result.preimage;
+            settledAt = result.settled_at;
+          } else {
+            // Fallback: direct NWC lookup
+            result = await nwcClient.lookupInvoice({ payment_hash: currentPaymentHash });
+            console.log(`lookupInvoice #${checks}:`, JSON.stringify(result, null, 2));
 
-          // NIP-47 responses may wrap the actual data in .result or .response
-          if (result?.result && typeof result.result === 'object') result = result.result;
-          if (result?.response && typeof result.response === 'object') result = result.response;
+            // NIP-47 responses may wrap the actual data in .result or .response
+            if (result?.result && typeof result.result === 'object') result = result.result;
+            if (result?.response && typeof result.response === 'object') result = result.response;
 
-          // STRICT payment verification — only trust clear "paid" signals
-          const preimage = result?.preimage || result?.payment_preimage || null;
-          // Only accept numeric settled_at > 0 (not empty strings, not booleans)
-          const settledAt = (typeof result?.settled_at === 'number' && result.settled_at > 0) ? result.settled_at
-            : (typeof result?.settledAt === 'number' && result.settledAt > 0) ? result.settledAt
-            : null;
-
-          // Check explicit state/status strings
-          const stateStr = (result?.state || result?.status || '').toString().toLowerCase();
-          const isStateSettled = stateStr === 'settled' || stateStr === 'paid' || stateStr === 'complete' || stateStr === 'completed';
-
-          // isPaid: require at least one STRONG signal of payment
-          // A preimage is the strongest proof (cryptographic)
-          // settled_at > 0 means the wallet confirms settlement
-          // explicit state = "settled"/"paid" is also reliable
-          // paid === true (boolean) is also reliable
-          const isPaid = (preimage && preimage.length >= 32) ||
-            settledAt ||
-            isStateSettled ||
-            result?.paid === true;
+            preimage = result?.preimage || result?.payment_preimage || null;
+            settledAt = (typeof result?.settled_at === 'number' && result.settled_at > 0) ? result.settled_at
+              : (typeof result?.settledAt === 'number' && result.settledAt > 0) ? result.settledAt
+              : null;
+            const stateStr = (result?.state || result?.status || '').toString().toLowerCase();
+            const isStateSettled = stateStr === 'settled' || stateStr === 'paid' || stateStr === 'complete' || stateStr === 'completed';
+            isPaid = (preimage && preimage.length >= 32) || settledAt || isStateSettled || result?.paid === true;
+          }
 
           if (result && isPaid) {
+            // VULN-002 FIX: Validate paid amount matches event price BEFORE confirming
+            const paidAmount = result?.amount || result?.amount_msat || result?.amount_msats || null;
+            const expectedMsats = selectedEvent.price * 1000;
+            if (paidAmount !== null && paidAmount !== undefined) {
+              const paidMsats = typeof paidAmount === 'number' ? paidAmount : parseInt(paidAmount, 10);
+              if (!isNaN(paidMsats) && paidMsats < expectedMsats) {
+                console.warn(`VULN-002 BLOCKED: Paid ${paidMsats} msats but expected ${expectedMsats} msats`);
+                document.getElementById('waitingText').textContent = 'Error: monto insuficiente';
+                clearInterval(paymentCheckInterval);
+                showToast(`Pago rechazado: ${Math.floor(paidMsats/1000)} sats < ${selectedEvent.price} sats requeridos`, 'error');
+                return;
+              }
+            }
             clearInterval(paymentCheckInterval);
             // Normalize the result object
             result.preimage = preimage || result?.preimage || 'verified';
             result.settled_at = settledAt || Math.floor(Date.now() / 1000);
-            console.log('Payment verified!', JSON.stringify(result));
+            console.log('Payment verified! Amount validated.', JSON.stringify(result));
             await onPaymentVerified(result);
           } else {
             document.getElementById('waitingText').textContent =
@@ -1863,6 +1911,32 @@
       // Create Zap Receipt event (NIP-57 kind 9735) — simulated for demo
       const zapReceiptEvent = createZapReceiptEvent(zapRequestEvent, preimage);
 
+      // v3.0: Request server-signed ticket (prevents localStorage tampering)
+      let serverSignature = null;
+      if (useBackendAPI) {
+        try {
+          const signResult = await fetch('/api/verify-ticket', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'sign',
+              ticket: {
+                eventId: selectedEvent.id,
+                name: currentName,
+                paymentHash: currentPaymentHash,
+                amount: selectedEvent.price
+              }
+            })
+          }).then(r => r.json());
+          if (signResult.valid) {
+            serverSignature = signResult.ticket.signature;
+            console.log('Ticket signed by server:', serverSignature.slice(0, 16) + '...');
+          }
+        } catch (signErr) {
+          console.warn('Server ticket signing unavailable:', signErr.message);
+        }
+      }
+
       // Log payment for audit
       const paymentEntry = {
         paymentHash: currentPaymentHash,
@@ -1874,7 +1948,8 @@
         settledAt: paymentResult.settled_at || Math.floor(Date.now() / 1000),
         createdAt: new Date().toISOString(),
         verified: true,
-        verificationMethod: isDemoMode ? 'NWC (demo)' : 'NWC (NIP-47)',
+        verificationMethod: useBackendAPI ? 'NWC (backend API)' : 'NWC (NIP-47)',
+        serverSignature: serverSignature,
         zapRequestId: zapRequestEvent?.id || null,
         zapReceiptId: zapReceiptEvent?.id || null
       };

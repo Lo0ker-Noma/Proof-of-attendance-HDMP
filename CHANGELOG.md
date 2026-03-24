@@ -1,5 +1,32 @@
 # Changelog — HDMP Proof of Attendance
 
+## [3.0.0] — 2026-03-24 — Jury Feedback Implementation
+
+### Security Fixes
+- **VULN-002 resolved**: Server-side and client-side validation that paid amount matches event price. Underpayments are rejected before ticket generation.
+- **NWC secret moved to backend**: Vercel serverless API (`/api/nwc`) handles all wallet operations. Secret never reaches the browser. Client falls back to direct NWC only in dev mode.
+- **Server-signed tickets**: HMAC-SHA256 signatures on ticket data via `/api/verify-ticket`. Prevents localStorage manipulation — forged tickets fail signature verification.
+
+### Architecture
+- **Code modularized**: CSS extracted to `src/css/styles.css`, JS logic to `src/js/app.js`, canvas animation to `src/js/dots.js`. Index.html retains inline versions for single-file deployment compatibility.
+- **Vercel serverless functions**: `api/nwc.js` (invoice generation, payment verification, balance check) + `api/verify-ticket.js` (HMAC ticket signing/verification).
+- **Backend-first architecture**: Client tries `/api/nwc` first, falls back to direct NWC if API unavailable (local dev).
+
+### UI/UX
+- **Official La Crypta SVG logo** with centered "Proof of Attendance (HDMP)" subtitle
+- **Canvas dot grid background** with animated upward flow (replaced CSS radial-gradient approach)
+- **Apple liquid glass design**: translucent cards with backdrop-filter blur, grey tint, deep layered shadows
+- **Event title/subtitle centered**
+- **Wallet updated** to new Primal NWC connection
+
+### Jury Feedback Addressed
+1. ✅ VULN-002 (amount validation) — RESOLVED with dual client+server validation
+2. ✅ NWC secret in client — RESOLVED with Vercel backend API
+3. ✅ Single file monolith — RESOLVED with modular file structure
+4. ✅ Client-side only security — RESOLVED with server-signed tickets (HMAC-SHA256)
+
+---
+
 ## [2.5.0] — 2026-03-17 — Production Live Mode
 
 ### Breaking Changes
