@@ -8,6 +8,9 @@
     },
     "api/verify-ticket.js": {
       "maxDuration": 10
+    },
+    "api/staff-verify.js": {
+      "maxDuration": 10
     }
   },
   "headers": [

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- Security Headers (v2.3) -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://esm.sh; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://esm.sh wss://* https://*; img-src 'self' data: blob: https://avatars.githubusercontent.com; frame-ancestors 'none';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://esm.sh; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://esm.sh wss://* https://*; img-src 'self' data: blob: https://avatars.githubusercontent.com; media-src 'self' blob: mediastream:; frame-ancestors 'none';">
   <meta http-equiv="X-Frame-Options" content="DENY">
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
   <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
@@ -842,6 +842,216 @@
       .stat-card { padding: 14px 8px; }
       .stat-num { font-size: 1.5rem; }
     }
+
+    /* ── STAFF VIEW ── */
+    .staff-pin-screen {
+      text-align: center;
+      padding: 40px 20px;
+    }
+    .staff-pin-title {
+      font-size: 1.8rem;
+      font-weight: 900;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, var(--gold) 0%, var(--gold-light) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .staff-pin-sub {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin-bottom: 32px;
+    }
+    .pin-input-row {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .pin-digit {
+      width: 56px;
+      height: 64px;
+      background: rgba(255,255,255,0.05);
+      border: 2px solid rgba(255,255,255,0.12);
+      border-radius: 14px;
+      color: var(--gold);
+      font-size: 1.8rem;
+      font-weight: 800;
+      text-align: center;
+      font-family: 'JetBrains Mono', monospace;
+      transition: all 0.2s;
+      -webkit-text-security: disc;
+    }
+    .pin-digit:focus {
+      border-color: var(--gold);
+      box-shadow: 0 0 20px rgba(247,147,26,0.2);
+      outline: none;
+    }
+    .pin-error {
+      color: var(--red);
+      font-size: 0.85rem;
+      margin-bottom: 16px;
+      display: none;
+    }
+    .staff-scanner-area {
+      display: none;
+    }
+    .staff-scanner-area.active {
+      display: block;
+    }
+    .scanner-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .scanner-title {
+      font-size: 1.3rem;
+      font-weight: 800;
+      color: var(--gold);
+    }
+    .scanner-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: rgba(16,185,129,0.12);
+      color: var(--green-light);
+      border: 1px solid rgba(16,185,129,0.2);
+    }
+    #staffQrReader {
+      width: 100%;
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      margin-bottom: 20px;
+      border: 2px solid rgba(255,255,255,0.1);
+      background: #000;
+      min-height: 280px;
+    }
+    #staffQrReader video {
+      border-radius: var(--radius-md);
+    }
+    .scan-result {
+      display: none;
+      padding: 20px;
+      border-radius: var(--radius-md);
+      margin-bottom: 16px;
+      animation: fadeInUp 0.3s ease-out;
+    }
+    .scan-result.valid {
+      background: rgba(16,185,129,0.08);
+      border: 1px solid rgba(16,185,129,0.25);
+    }
+    .scan-result.invalid {
+      background: rgba(239,68,68,0.08);
+      border: 1px solid rgba(239,68,68,0.25);
+    }
+    .scan-result.warning {
+      background: rgba(247,147,26,0.08);
+      border: 1px solid rgba(247,147,26,0.25);
+    }
+    .scan-result-icon {
+      font-size: 3rem;
+      text-align: center;
+      margin-bottom: 12px;
+    }
+    .scan-result-title {
+      font-size: 1.2rem;
+      font-weight: 800;
+      text-align: center;
+      margin-bottom: 8px;
+    }
+    .scan-result-details {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+    .scan-result-details .detail-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .scan-result-details .detail-label {
+      color: var(--text-dim);
+    }
+    .scan-result-details .detail-value {
+      font-weight: 600;
+      color: var(--text);
+    }
+    .staff-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 16px;
+    }
+    .staff-actions .btn {
+      flex: 1;
+    }
+    .btn-validate-drink {
+      background: linear-gradient(135deg, var(--purple), var(--purple-deep)) !important;
+    }
+    .btn-validate-drink:hover {
+      box-shadow: 0 4px 20px rgba(139,92,246,0.3) !important;
+    }
+    .staff-log {
+      margin-top: 24px;
+    }
+    .staff-log-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+    .staff-log-entry {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: var(--radius-sm);
+      margin-bottom: 8px;
+      font-size: 0.82rem;
+      animation: fadeInUp 0.3s ease-out;
+    }
+    .staff-log-entry .log-icon { font-size: 1.2rem; }
+    .staff-log-entry .log-info { flex: 1; }
+    .staff-log-entry .log-name { font-weight: 600; color: var(--text); }
+    .staff-log-entry .log-time { color: var(--text-dim); font-size: 0.75rem; }
+    .staff-log-entry .log-type {
+      font-size: 0.7rem;
+      padding: 3px 8px;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+    .staff-log-entry .log-type.entrada { background: rgba(16,185,129,0.15); color: var(--green-light); }
+    .staff-log-entry .log-type.consumicion { background: rgba(139,92,246,0.15); color: #c4b5fd; }
+    .staff-stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .staff-stat {
+      text-align: center;
+      padding: 14px 8px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: var(--radius-sm);
+    }
+    .staff-stat-num {
+      font-size: 1.5rem;
+      font-weight: 900;
+      color: var(--gold);
+    }
+    .staff-stat-label {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      margin-top: 2px;
+    }
   </style>
 </head>
 <body>
@@ -869,6 +1079,7 @@
       <a class="header-link" onclick="showView('event')">Evento</a>
       <a class="header-link" onclick="showView('audit')">Auditoría</a>
       <a class="header-link" onclick="showView('organizer')">Organizer</a>
+      <a class="header-link" onclick="showView('staff')" style="color:var(--gold-light);font-weight:700">🔑 Staff</a>
     </div>
   </header>
 
@@ -1246,6 +1457,96 @@
   </div>
 
   <!-- ════════════════════════════════════════
+       VISTA 6: STAFF — QR Scanner & Validation
+  ════════════════════════════════════════ -->
+  <div id="view-staff" class="view">
+
+    <!-- PIN Screen -->
+    <div id="staffPinScreen" class="staff-pin-screen">
+      <div class="card">
+        <div style="font-size:3rem;margin-bottom:16px">🔑</div>
+        <div class="staff-pin-title">Acceso Staff</div>
+        <div class="staff-pin-sub">Ingresá el PIN de La Crypta para acceder al escáner de tickets</div>
+
+        <div class="pin-input-row">
+          <input type="tel" class="pin-digit" maxlength="1" id="pin1" inputmode="numeric" pattern="[0-9]" autocomplete="off">
+          <input type="tel" class="pin-digit" maxlength="1" id="pin2" inputmode="numeric" pattern="[0-9]" autocomplete="off">
+          <input type="tel" class="pin-digit" maxlength="1" id="pin3" inputmode="numeric" pattern="[0-9]" autocomplete="off">
+          <input type="tel" class="pin-digit" maxlength="1" id="pin4" inputmode="numeric" pattern="[0-9]" autocomplete="off">
+        </div>
+
+        <div class="pin-error" id="pinError">PIN incorrecto. Intentá de nuevo.</div>
+
+        <button class="btn btn-primary" onclick="verifyStaffPin()" style="width:100%;margin-top:8px">
+          🔓 Verificar PIN
+        </button>
+      </div>
+    </div>
+
+    <!-- Scanner Area (hidden until PIN verified) -->
+    <div id="staffScannerArea" class="staff-scanner-area">
+
+      <div class="scanner-header">
+        <div>
+          <div class="scanner-title">📸 Escáner de Tickets</div>
+          <div style="font-size:0.8rem;color:var(--text-dim);margin-top:2px">Escaneá el QR del asistente</div>
+        </div>
+        <div class="scanner-badge">✅ Staff verificado</div>
+      </div>
+
+      <!-- Stats -->
+      <div class="staff-stats-row">
+        <div class="staff-stat">
+          <div class="staff-stat-num" id="staffStatEntradas">0</div>
+          <div class="staff-stat-label">Entradas</div>
+        </div>
+        <div class="staff-stat">
+          <div class="staff-stat-num" id="staffStatConsumos">0</div>
+          <div class="staff-stat-label">Consumiciones</div>
+        </div>
+        <div class="staff-stat">
+          <div class="staff-stat-num" id="staffStatTotal">0</div>
+          <div class="staff-stat-label">Escaneados</div>
+        </div>
+      </div>
+
+      <!-- QR Reader container -->
+      <div id="staffQrReader"></div>
+
+      <!-- Manual code input fallback -->
+      <div class="card" style="margin-bottom:16px">
+        <div style="font-size:0.85rem;font-weight:600;color:var(--text-muted);margin-bottom:8px">O ingresá el código manualmente:</div>
+        <div class="redeem-input-row">
+          <input type="text" id="staffManualCode" placeholder="HDMP-XXXXXX" style="font-family:'JetBrains Mono',monospace;font-size:0.9rem;text-transform:uppercase;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:10px;color:#fff;padding:12px;flex:1" oninput="this.value=this.value.toUpperCase()">
+          <button class="btn btn-primary" onclick="staffManualLookup()" style="padding:12px 20px">🔍</button>
+        </div>
+      </div>
+
+      <!-- Scan Result -->
+      <div id="staffScanResult" class="scan-result">
+        <div class="scan-result-icon" id="scanResultIcon"></div>
+        <div class="scan-result-title" id="scanResultTitle"></div>
+        <div class="scan-result-details" id="scanResultDetails"></div>
+        <div class="staff-actions" id="staffActions"></div>
+      </div>
+
+      <!-- Action Log -->
+      <div class="staff-log">
+        <div class="staff-log-title">📋 Registro de actividad</div>
+        <div id="staffLogEntries">
+          <div style="text-align:center;color:var(--text-dim);font-size:0.85rem;padding:20px">
+            Aún no hay escaneos registrados
+          </div>
+        </div>
+      </div>
+
+      <button class="btn btn-secondary" style="margin-top:24px" onclick="staffLogout()">
+        🔒 Cerrar sesión Staff
+      </button>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════
        SCRIPT PRINCIPAL — NWC + ZAPS + AUDIT
   ════════════════════════════════════════ -->
   <script type="module">
@@ -1525,7 +1826,7 @@
         showToast('Wallet del organizador no conectada — esperá unos segundos', 'error');
         return;
       }
-      if (!isNWCConnected && viewId !== 'event') {
+      if (!isNWCConnected && viewId !== 'event' && viewId !== 'staff') {
         viewId = 'event';
       }
 
@@ -1547,6 +1848,7 @@
       }
       if (viewId === 'organizer') loadOrganizerPanel();
       if (viewId === 'audit') loadAuditDashboard();
+      if (viewId === 'staff') initStaffView();
     };
 
     // ── DATOS PERSISTENTES ─────────────────────────────
@@ -2429,6 +2731,405 @@
       showToast('Datos limpiados', 'info');
     };
 
+    // ══════════════════════════════════════════════════════
+    // STAFF MODULE — QR Scanner & Ticket Validation
+    // ══════════════════════════════════════════════════════
+
+    let staffAuthenticated = false;
+    let staffQrScanner = null;
+    const staffLog = [];
+
+    // PIN input auto-focus behavior
+    function setupPinInputs() {
+      const pins = [document.getElementById('pin1'), document.getElementById('pin2'), document.getElementById('pin3'), document.getElementById('pin4')];
+      pins.forEach((input, i) => {
+        if (!input) return;
+        input.addEventListener('input', () => {
+          if (input.value.length === 1 && i < 3) pins[i + 1].focus();
+          if (pins.every(p => p.value.length === 1)) verifyStaffPin();
+        });
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Backspace' && input.value === '' && i > 0) pins[i - 1].focus();
+        });
+      });
+    }
+
+    window.initStaffView = function() {
+      setupPinInputs();
+      if (staffAuthenticated) {
+        document.getElementById('staffPinScreen').style.display = 'none';
+        document.getElementById('staffScannerArea').classList.add('active');
+        startQrScanner();
+        updateStaffStats();
+      } else {
+        document.getElementById('staffPinScreen').style.display = 'block';
+        document.getElementById('staffScannerArea').classList.remove('active');
+        setTimeout(() => { const p1 = document.getElementById('pin1'); if(p1) p1.focus(); }, 200);
+      }
+    };
+
+    window.verifyStaffPin = async function() {
+      const pin = ['pin1','pin2','pin3','pin4'].map(id => document.getElementById(id).value).join('');
+      if (pin.length !== 4) return;
+
+      const errEl = document.getElementById('pinError');
+
+      try {
+        // Try server-side PIN verification
+        const res = await fetch('/api/staff-verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'verify-pin', pin })
+        });
+        const data = await res.json();
+
+        if (data.valid) {
+          staffAuthenticated = true;
+          errEl.style.display = 'none';
+          document.getElementById('staffPinScreen').style.display = 'none';
+          document.getElementById('staffScannerArea').classList.add('active');
+          showToast('Acceso Staff verificado', 'success');
+          startQrScanner();
+          updateStaffStats();
+          return;
+        }
+      } catch (apiErr) {
+        // Fallback: client-side PIN check (for local dev / offline)
+        console.log('Staff API not available, using fallback PIN:', apiErr.message);
+        if (pin === '1234') {
+          staffAuthenticated = true;
+          errEl.style.display = 'none';
+          document.getElementById('staffPinScreen').style.display = 'none';
+          document.getElementById('staffScannerArea').classList.add('active');
+          showToast('Acceso Staff verificado (offline)', 'success');
+          startQrScanner();
+          updateStaffStats();
+          return;
+        }
+      }
+
+      // PIN incorrect
+      errEl.style.display = 'block';
+      ['pin1','pin2','pin3','pin4'].forEach(id => { document.getElementById(id).value = ''; });
+      document.getElementById('pin1').focus();
+    };
+
+    window.staffLogout = function() {
+      staffAuthenticated = false;
+      stopQrScanner();
+      document.getElementById('staffPinScreen').style.display = 'block';
+      document.getElementById('staffScannerArea').classList.remove('active');
+      document.getElementById('staffScanResult').style.display = 'none';
+      ['pin1','pin2','pin3','pin4'].forEach(id => { document.getElementById(id).value = ''; });
+      showToast('Sesión Staff cerrada', 'info');
+    };
+
+    async function startQrScanner() {
+      const container = document.getElementById('staffQrReader');
+      if (!container) return;
+
+      // Dynamic import of html5-qrcode
+      try {
+        const { Html5Qrcode } = await import('https://esm.sh/html5-qrcode@2.3.8');
+
+        if (staffQrScanner) {
+          try { await staffQrScanner.stop(); } catch(e) {}
+        }
+
+        staffQrScanner = new Html5Qrcode('staffQrReader');
+
+        await staffQrScanner.start(
+          { facingMode: 'environment' },
+          {
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0
+          },
+          (decodedText) => {
+            // QR scanned successfully
+            onQrScanned(decodedText);
+          },
+          (errorMessage) => {
+            // QR scan error (ignore, keep scanning)
+          }
+        );
+      } catch (err) {
+        console.error('QR Scanner error:', err);
+        container.innerHTML = `
+          <div style="padding:40px 20px;text-align:center;color:var(--text-muted)">
+            <div style="font-size:2rem;margin-bottom:12px">📷</div>
+            <div style="font-size:0.9rem;margin-bottom:8px">No se pudo acceder a la cámara</div>
+            <div style="font-size:0.8rem;color:var(--text-dim)">Usá el campo de entrada manual de abajo, o revisá los permisos de la cámara.</div>
+          </div>
+        `;
+      }
+    }
+
+    function stopQrScanner() {
+      if (staffQrScanner) {
+        try { staffQrScanner.stop(); } catch(e) {}
+        staffQrScanner = null;
+      }
+    }
+
+    let lastScannedCode = '';
+    let lastScanTime = 0;
+
+    async function onQrScanned(rawData) {
+      // Debounce — avoid scanning same QR repeatedly
+      const now = Date.now();
+      if (rawData === lastScannedCode && now - lastScanTime < 5000) return;
+      lastScannedCode = rawData;
+      lastScanTime = now;
+
+      // Pause scanner briefly
+      if (staffQrScanner) {
+        try { await staffQrScanner.pause(); } catch(e) {}
+      }
+
+      await processTicketData(rawData);
+
+      // Resume scanner after 3 seconds
+      setTimeout(() => {
+        if (staffQrScanner) {
+          try { staffQrScanner.resume(); } catch(e) {}
+        }
+      }, 3000);
+    }
+
+    window.staffManualLookup = function() {
+      const code = document.getElementById('staffManualCode').value.trim();
+      if (!code) return;
+
+      // Look up ticket from localStorage by code
+      const reservations = getReservations();
+      const match = reservations.find(r => r.ticketCode === code);
+
+      if (match) {
+        // Build ticket data as if scanned from QR
+        const ticketData = {
+          eventId: match.eventId || selectedEvent.id,
+          name: match.name,
+          paymentHash: match.paymentHash,
+          amount: match.amount || selectedEvent.price,
+          timestamp: match.serverTimestamp || new Date(match.createdAt).getTime(),
+          signature: match.serverSignature || null,
+          code: match.ticketCode
+        };
+        processTicketData(JSON.stringify(ticketData));
+      } else {
+        showScanResult('invalid', '❌', 'Ticket no encontrado', `No se encontró ninguna reserva con el código <strong>${sanitizeInput(code)}</strong>.`);
+      }
+    };
+
+    async function processTicketData(rawData) {
+      let ticketData;
+
+      try {
+        ticketData = JSON.parse(rawData);
+      } catch {
+        // Not JSON — might be just a ticket code string
+        const code = rawData.trim().toUpperCase();
+        if (code.startsWith('HDMP-')) {
+          // Look up by code
+          const reservations = getReservations();
+          const match = reservations.find(r => r.ticketCode === code);
+          if (match) {
+            ticketData = {
+              eventId: match.eventId || selectedEvent.id,
+              name: match.name,
+              paymentHash: match.paymentHash,
+              amount: match.amount || selectedEvent.price,
+              timestamp: match.serverTimestamp || new Date(match.createdAt).getTime(),
+              signature: match.serverSignature || null,
+              code: match.ticketCode,
+              redeemed: match.redeemed
+            };
+          } else {
+            showScanResult('invalid', '❌', 'Ticket no encontrado', `Código <strong>${sanitizeInput(code)}</strong> no existe en el sistema.`);
+            return;
+          }
+        } else {
+          showScanResult('invalid', '⚠️', 'QR inválido', 'Este QR no contiene datos de ticket HDMP.');
+          return;
+        }
+      }
+
+      // Check if this ticket is already in local reservations
+      const reservations = getReservations();
+      const localMatch = reservations.find(r =>
+        r.paymentHash === ticketData.paymentHash ||
+        r.ticketCode === ticketData.code
+      );
+
+      // Check redemption status
+      const staffValidations = JSON.parse(localStorage.getItem('hdmp_staff_validations') || '[]');
+      const existingValidation = staffValidations.find(v => v.paymentHash === ticketData.paymentHash);
+
+      let serverVerified = false;
+
+      // Try server-side verification if ticket has a signature
+      if (ticketData.signature) {
+        try {
+          const res = await fetch('/api/staff-verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'validate-ticket', ticket: ticketData })
+          });
+          const data = await res.json();
+          serverVerified = data.valid && data.serverSigned;
+        } catch (e) {
+          console.log('Server verification unavailable:', e.message);
+        }
+      }
+
+      // Build result
+      const ticketName = ticketData.name || 'Anónimo';
+      const ticketAmount = ticketData.amount || '?';
+      const ticketCode = ticketData.code || localMatch?.ticketCode || '—';
+      const isEntrada = existingValidation?.type === 'entrada';
+      const isConsumo = existingValidation?.type === 'consumicion';
+
+      let detailsHtml = `
+        <div class="detail-row"><span class="detail-label">Nombre</span><span class="detail-value">${sanitizeInput(ticketName)}</span></div>
+        <div class="detail-row"><span class="detail-label">Código</span><span class="detail-value" style="font-family:'JetBrains Mono',monospace">${sanitizeInput(ticketCode)}</span></div>
+        <div class="detail-row"><span class="detail-label">Monto</span><span class="detail-value" style="color:var(--gold)">${ticketAmount} sats ⚡</span></div>
+        <div class="detail-row"><span class="detail-label">Firma servidor</span><span class="detail-value">${serverVerified ? '✅ Verificada' : ticketData.signature ? '⚠️ No verificada' : '— Sin firma'}</span></div>
+        <div class="detail-row"><span class="detail-label">Estado entrada</span><span class="detail-value">${isEntrada ? '✅ Ya registrado' : '🆕 No registrado'}</span></div>
+        <div class="detail-row"><span class="detail-label">Consumición</span><span class="detail-value">${isConsumo ? '🍺 Ya canjeada' : '🎫 Disponible'}</span></div>
+      `;
+
+      // Build action buttons
+      let actionsHtml = '';
+
+      if (!isEntrada) {
+        actionsHtml += `<button class="btn btn-primary" onclick="staffValidateTicket('${ticketData.paymentHash}', '${sanitizeInput(ticketName)}', '${sanitizeInput(ticketCode)}', 'entrada')">✅ Validar Entrada</button>`;
+      }
+
+      if (!isConsumo) {
+        actionsHtml += `<button class="btn btn-validate-drink" onclick="staffValidateTicket('${ticketData.paymentHash}', '${sanitizeInput(ticketName)}', '${sanitizeInput(ticketCode)}', 'consumicion')">🍺 Validar Consumición</button>`;
+      }
+
+      if (isEntrada && isConsumo) {
+        actionsHtml = `<div style="text-align:center;color:var(--text-muted);font-size:0.85rem;padding:8px">Este ticket ya fue completamente validado</div>`;
+      }
+
+      if (localMatch || ticketData.paymentHash) {
+        showScanResult(
+          serverVerified ? 'valid' : 'warning',
+          serverVerified ? '✅' : '⚠️',
+          serverVerified ? 'Ticket Válido' : 'Ticket encontrado (sin firma servidor)',
+          detailsHtml,
+          actionsHtml
+        );
+      } else {
+        showScanResult('invalid', '❌', 'Ticket no encontrado', 'Este ticket no está registrado en el sistema.');
+      }
+    }
+
+    function showScanResult(type, icon, title, details, actions) {
+      const el = document.getElementById('staffScanResult');
+      el.className = 'scan-result ' + type;
+      el.style.display = 'block';
+      document.getElementById('scanResultIcon').textContent = icon;
+      document.getElementById('scanResultTitle').textContent = title;
+      document.getElementById('scanResultDetails').innerHTML = details;
+      document.getElementById('staffActions').innerHTML = actions || '';
+
+      // Scroll to result
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+      // Vibrate on mobile if available
+      if (navigator.vibrate) {
+        navigator.vibrate(type === 'valid' ? [100] : type === 'invalid' ? [200, 100, 200] : [150]);
+      }
+    }
+
+    window.staffValidateTicket = function(paymentHash, name, code, type) {
+      const staffValidations = JSON.parse(localStorage.getItem('hdmp_staff_validations') || '[]');
+
+      // Check if already validated for this type
+      const existing = staffValidations.find(v => v.paymentHash === paymentHash && v.type === type);
+      if (existing) {
+        showToast(`Ya fue validado como ${type === 'entrada' ? 'entrada' : 'consumición'}`, 'warning');
+        return;
+      }
+
+      // Save validation
+      const validation = {
+        paymentHash,
+        name,
+        code,
+        type,
+        timestamp: new Date().toISOString(),
+        staffSession: Date.now()
+      };
+      staffValidations.push(validation);
+      localStorage.setItem('hdmp_staff_validations', JSON.stringify(staffValidations));
+
+      // Also update reservation's redeemed status if it's an entrada
+      if (type === 'entrada') {
+        const reservations = getReservations();
+        const match = reservations.find(r => r.paymentHash === paymentHash || r.ticketCode === code);
+        if (match && !match.redeemed) {
+          match.redeemed = true;
+          match.redeemedAt = new Date().toISOString();
+          localStorage.setItem('hdmp_reservations', JSON.stringify(reservations));
+        }
+      }
+
+      // Add to log
+      addStaffLogEntry(name, code, type);
+      updateStaffStats();
+
+      // Update scan result display
+      showToast(type === 'entrada' ? `✅ Entrada validada para ${name}` : `🍺 Consumición validada para ${name}`, 'success');
+
+      // Hide actions, show confirmation
+      document.getElementById('staffActions').innerHTML = `
+        <div style="text-align:center;color:var(--green-light);font-size:0.9rem;padding:8px;font-weight:600">
+          ${type === 'entrada' ? '✅ ENTRADA REGISTRADA' : '🍺 CONSUMICIÓN CANJEADA'}
+        </div>
+      `;
+    };
+
+    function addStaffLogEntry(name, code, type) {
+      const container = document.getElementById('staffLogEntries');
+
+      // Remove empty state if present
+      if (container.querySelector('.empty-state, [style*="text-align:center"]')) {
+        container.innerHTML = '';
+      }
+
+      const timeStr = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+
+      const entry = document.createElement('div');
+      entry.className = 'staff-log-entry';
+      entry.innerHTML = `
+        <div class="log-icon">${type === 'entrada' ? '🚪' : '🍺'}</div>
+        <div class="log-info">
+          <div class="log-name">${sanitizeInput(name)}</div>
+          <div class="log-time">${sanitizeInput(code)} · ${timeStr}</div>
+        </div>
+        <div class="log-type ${type}">${type === 'entrada' ? 'Entrada' : 'Consumición'}</div>
+      `;
+
+      container.insertBefore(entry, container.firstChild);
+    }
+
+    function updateStaffStats() {
+      const validations = JSON.parse(localStorage.getItem('hdmp_staff_validations') || '[]');
+      const entradas = validations.filter(v => v.type === 'entrada').length;
+      const consumos = validations.filter(v => v.type === 'consumicion').length;
+
+      const el1 = document.getElementById('staffStatEntradas');
+      const el2 = document.getElementById('staffStatConsumos');
+      const el3 = document.getElementById('staffStatTotal');
+      if (el1) el1.textContent = entradas;
+      if (el2) el2.textContent = consumos;
+      if (el3) el3.textContent = validations.length;
+    }
+
     // ── INICIALIZACIÓN ────────────────────────────────────
     // Wrapped in async IIFE to avoid top-level await (Vite/esbuild compatibility)
     (async function init() {
@@ -2442,6 +3143,7 @@
 
       if (location.hash === '#organizer') showView('organizer');
       if (location.hash === '#audit') showView('audit');
+      if (location.hash === '#staff') showView('staff');
     })();
   </script>
 
