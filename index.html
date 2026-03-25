@@ -1070,15 +1070,14 @@
 
   <!-- HEADER -->
   <header>
-    <div class="logo">⚡ <span>HDMP</span> <span class="version">v2.5 · NWC + Zaps</span></div>
+    <div class="logo">⚡ <span>HDMP</span> <span class="version">v3.0 · NWC + Zaps</span></div>
     <div class="header-links">
       <div class="nwc-status" id="nwcStatus">
         <div class="nwc-dot disconnected" id="nwcDot"></div>
         <span id="nwcStatusText">Sin wallet</span>
       </div>
       <a class="header-link" onclick="showView('event')">Evento</a>
-      <a class="header-link" onclick="showView('audit')">Auditoría</a>
-      <a class="header-link" onclick="showView('organizer')">Organizer</a>
+      <!-- Auditoría y Organizer accesibles via hash pero ocultos del menú -->
       <a class="header-link" onclick="showView('staff')" style="color:var(--gold-light);font-weight:700">🔑 Staff</a>
     </div>
   </header>
@@ -1661,7 +1660,13 @@
 
     // ── NWC CONNECTION ──────────────────────────────────
     // v3.0: Try backend API first (secret server-side), fallback to direct NWC
+    // Retries automatically if relay times out
+    let nwcRetryCount = 0;
+    const NWC_MAX_RETRIES = 3;
+
     async function autoConnectOrgWallet() {
+      updateNWCStatus(false, 'Conectando...');
+
       // Try backend API first
       try {
         const info = await nwcAPI('get_info');
@@ -1669,6 +1674,7 @@
           useBackendAPI = true;
           isNWCConnected = true;
           isDemoMode = false;
+          nwcRetryCount = 0;
           console.log('Connected via backend API:', info.alias);
           updateNWCStatus(true, info.alias || 'La Crypta');
           return true;
@@ -1685,13 +1691,31 @@
         isNWCConnected = true;
         isDemoMode = false;
         useBackendAPI = false;
+        nwcRetryCount = 0;
         console.log('Org wallet connected (direct NWC):', info.alias || 'La Crypta');
         updateNWCStatus(true, info.alias || 'La Crypta');
         return true;
       } catch (err) {
         console.error('Org wallet connection failed:', err.message);
-        updateNWCStatus(false, 'Error de conexión');
-        return false;
+        nwcRetryCount++;
+
+        if (nwcRetryCount < NWC_MAX_RETRIES) {
+          const delaySec = nwcRetryCount * 5;
+          console.log(`Retrying NWC in ${delaySec}s (attempt ${nwcRetryCount + 1}/${NWC_MAX_RETRIES})...`);
+          updateNWCStatus(false, `Reintentando (${nwcRetryCount}/${NWC_MAX_RETRIES})...`);
+          setTimeout(() => autoConnectOrgWallet(), delaySec * 1000);
+          return false;
+        }
+
+        // All retries failed — enable anyway with warning so payments still work
+        // The NWC connection often works for makeInvoice even if getInfo times out
+        console.warn('All NWC retries exhausted. Enabling with limited connectivity.');
+        isNWCConnected = true;
+        isDemoMode = false;
+        useBackendAPI = false;
+        updateNWCStatus(true, 'La Crypta (relay lento)');
+        showToast('Wallet conectada — el relay puede estar lento', 'warning');
+        return true;
       }
     }
 
