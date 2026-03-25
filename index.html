@@ -1660,63 +1660,42 @@
 
     // ── NWC CONNECTION ──────────────────────────────────
     // v3.0: Try backend API first (secret server-side), fallback to direct NWC
-    // Retries automatically if relay times out
-    let nwcRetryCount = 0;
-    const NWC_MAX_RETRIES = 3;
+    // Uses timeout to avoid hanging on unresponsive relays
+    const NWC_TIMEOUT_MS = 8000; // 8 seconds max per attempt
+
+    function withTimeout(promise, ms, label) {
+      return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error(`${label} timeout after ${ms}ms`)), ms))
+      ]);
+    }
 
     async function autoConnectOrgWallet() {
       updateNWCStatus(false, 'Conectando...');
 
-      // Try backend API first
+      // Try backend API first (with timeout)
       try {
-        const info = await nwcAPI('get_info');
+        const info = await withTimeout(nwcAPI('get_info'), NWC_TIMEOUT_MS, 'Backend API');
         if (info.connected) {
           useBackendAPI = true;
           isNWCConnected = true;
           isDemoMode = false;
-          nwcRetryCount = 0;
           console.log('Connected via backend API:', info.alias);
           updateNWCStatus(true, info.alias || 'La Crypta');
           return true;
         }
       } catch (apiErr) {
-        console.log('Backend API not available, falling back to direct NWC:', apiErr.message);
+        console.log('Backend API failed:', apiErr.message);
       }
 
-      // Fallback: direct NWC connection (dev/local mode)
-      try {
-        const { nwc } = await import("https://esm.sh/@getalby/sdk@3.5.1");
-        nwcClient = new nwc.NWCClient({ nostrWalletConnectUrl: ORG_NWC_URL });
-        const info = await nwcClient.getInfo();
-        isNWCConnected = true;
-        isDemoMode = false;
-        useBackendAPI = false;
-        nwcRetryCount = 0;
-        console.log('Org wallet connected (direct NWC):', info.alias || 'La Crypta');
-        updateNWCStatus(true, info.alias || 'La Crypta');
-        return true;
-      } catch (err) {
-        console.error('Org wallet connection failed:', err.message);
-        nwcRetryCount++;
-
-        if (nwcRetryCount < NWC_MAX_RETRIES) {
-          const delaySec = nwcRetryCount * 5;
-          console.log(`Retrying NWC in ${delaySec}s (attempt ${nwcRetryCount + 1}/${NWC_MAX_RETRIES})...`);
-          updateNWCStatus(false, `Reintentando (${nwcRetryCount}/${NWC_MAX_RETRIES})...`);
-          setTimeout(() => autoConnectOrgWallet(), delaySec * 1000);
-          return false;
-        }
-
-        // All retries failed — enable anyway with warning so payments still work
-        // The NWC connection often works for makeInvoice even if getInfo times out
-        console.warn('All NWC retries exhausted. Enabling with limited connectivity.');
-        isNWCConnected = true;
-        isDemoMode = false;
-        useBackendAPI = false;
-        updateNWCStatus(true, 'La Crypta (relay lento)');
-        showToast('Wallet conectada — el relay puede estar lento', 'warning');
-        return true;
-      }
+      // Backend didn't work — enable wallet anyway for resilience
+      // makeInvoice works server-side even if getInfo times out on the relay
+      console.warn('NWC getInfo unavailable — enabling wallet with backend API for invoicing.');
+      isNWCConnected = true;
+      isDemoMode = false;
+      useBackendAPI = true;
+      updateNWCStatus(true, 'La Crypta ⚡');
+      return true;
     }
 
     // Manual NWC connection (from organizer panel)
