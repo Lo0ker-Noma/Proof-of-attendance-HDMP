@@ -2262,7 +2262,7 @@
 
       // Wait a beat then generate ticket
       await new Promise(r => setTimeout(r, 1500));
-      await generateTicket(preimage, zapRequestEvent, zapReceiptEvent);
+      await generateTicket(preimage, zapRequestEvent, zapReceiptEvent, serverSignature);
     }
 
     // ── NIP-57: ZAP REQUEST (Kind 9734) ──────────────────
@@ -2342,14 +2342,16 @@
     }
 
     // ── GENERAR TICKET ──────────────────────────────────
-    async function generateTicket(preimage, zapRequest, zapReceipt) {
+    async function generateTicket(preimage, zapRequest, zapReceipt, serverSignature) {
       setStep(3);
 
       const ticketCode = generateTicketCode();
       const now = new Date();
+      const serverTimestamp = Date.now();
 
       const reservation = {
         ticketCode,
+        eventId: selectedEvent.id,
         name: currentName,
         npub: currentNpub,
         invoice: currentInvoice,
@@ -2359,6 +2361,8 @@
         status: 'confirmed',
         createdAt: now.toISOString(),
         redeemedAt: null,
+        serverSignature: serverSignature || null,
+        serverTimestamp: serverTimestamp,
         zapRequestId: zapRequest?.id || null,
         zapReceiptId: zapReceipt?.id || null,
         verifiedViaNWC: true
@@ -2381,16 +2385,25 @@
       document.getElementById('ticketZapEvent').textContent =
         `Zap Receipt: ${zapReceipt?.id ? zapReceipt.id.slice(0,24) + '...' : '—'}`;
 
-      // Generate QR
+      // Generate QR with FULL ticket data for cross-device staff verification
+      // This QR is self-contained — staff scanner can verify via server signature
+      // without needing access to the buyer's localStorage
       const qrData = JSON.stringify({
+        v: 3,
         code: ticketCode,
-        hash: currentPaymentHash?.slice(0,16),
-        zap: zapReceipt?.id?.slice(0,16)
+        eventId: selectedEvent.id,
+        name: currentName,
+        paymentHash: currentPaymentHash,
+        amount: selectedEvent.price,
+        timestamp: serverTimestamp,
+        signature: serverSignature || null,
+        zap: zapReceipt?.id?.slice(0, 16) || null
       });
       const canvas = document.getElementById('ticketQR');
       await QRCode.toCanvas(canvas, qrData, {
-        width: 200, margin: 1,
-        color: { dark: '#000000', light: '#ffffff' }
+        width: 220, margin: 1,
+        color: { dark: '#000000', light: '#ffffff' },
+        errorCorrectionLevel: 'M'
       });
 
       showView('ticket');
@@ -2797,18 +2810,12 @@
           return;
         }
       } catch (apiErr) {
-        // Fallback: client-side PIN check (for local dev / offline)
-        console.log('Staff API not available, using fallback PIN:', apiErr.message);
-        if (pin === '1234') {
-          staffAuthenticated = true;
-          errEl.style.display = 'none';
-          document.getElementById('staffPinScreen').style.display = 'none';
-          document.getElementById('staffScannerArea').classList.add('active');
-          showToast('Acceso Staff verificado (offline)', 'success');
-          startQrScanner();
-          updateStaffStats();
-          return;
-        }
+        // Fail closed: no client-side PIN fallback (security hardened v3.0)
+        console.error('Staff API unavailable:', apiErr.message);
+        showToast('Error de conexión — no se puede verificar PIN', 'error');
+        ['pin1','pin2','pin3','pin4'].forEach(id => { document.getElementById(id).value = ''; });
+        document.getElementById('pin1').focus();
+        return;
       }
 
       // PIN incorrect
@@ -3002,26 +3009,43 @@
         <div class="detail-row"><span class="detail-label">Consumición</span><span class="detail-value">${isConsumo ? '🍺 Ya canjeada' : '🎫 Disponible'}</span></div>
       `;
 
-      // Build action buttons
+      // Build action buttons using safe DOM methods (prevent XSS via paymentHash/name injection)
+      // Store current ticket data for event delegation (no string interpolation in onclick)
+      const safeTicketData = {
+        paymentHash: String(ticketData.paymentHash || '').replace(/[^a-f0-9]/gi, ''),
+        name: sanitizeInput(ticketName),
+        code: sanitizeInput(ticketCode)
+      };
+      window._pendingStaffTicket = safeTicketData;
+
       let actionsHtml = '';
 
       if (!isEntrada) {
-        actionsHtml += `<button class="btn btn-primary" onclick="staffValidateTicket('${ticketData.paymentHash}', '${sanitizeInput(ticketName)}', '${sanitizeInput(ticketCode)}', 'entrada')">✅ Validar Entrada</button>`;
+        actionsHtml += `<button class="btn btn-primary" data-staff-action="entrada">✅ Validar Entrada</button>`;
       }
 
       if (!isConsumo) {
-        actionsHtml += `<button class="btn btn-validate-drink" onclick="staffValidateTicket('${ticketData.paymentHash}', '${sanitizeInput(ticketName)}', '${sanitizeInput(ticketCode)}', 'consumicion')">🍺 Validar Consumición</button>`;
+        actionsHtml += `<button class="btn btn-validate-drink" data-staff-action="consumicion">🍺 Validar Consumición</button>`;
       }
 
       if (isEntrada && isConsumo) {
         actionsHtml = `<div style="text-align:center;color:var(--text-muted);font-size:0.85rem;padding:8px">Este ticket ya fue completamente validado</div>`;
       }
 
-      if (localMatch || ticketData.paymentHash) {
+      // Require server signature for validation (prevent localStorage forgery)
+      if (!serverVerified && ticketData.paymentHash) {
         showScanResult(
-          serverVerified ? 'valid' : 'warning',
-          serverVerified ? '✅' : '⚠️',
-          serverVerified ? 'Ticket Válido' : 'Ticket encontrado (sin firma servidor)',
+          'warning',
+          '⚠️',
+          'Ticket sin firma servidor',
+          detailsHtml,
+          actionsHtml
+        );
+      } else if (serverVerified) {
+        showScanResult(
+          'valid',
+          '✅',
+          'Ticket Válido',
           detailsHtml,
           actionsHtml
         );
@@ -3037,7 +3061,17 @@
       document.getElementById('scanResultIcon').textContent = icon;
       document.getElementById('scanResultTitle').textContent = title;
       document.getElementById('scanResultDetails').innerHTML = details;
-      document.getElementById('staffActions').innerHTML = actions || '';
+      const actionsEl = document.getElementById('staffActions');
+      actionsEl.innerHTML = actions || '';
+
+      // Event delegation for staff action buttons (XSS-safe, no onclick interpolation)
+      actionsEl.querySelectorAll('[data-staff-action]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const t = window._pendingStaffTicket;
+          if (!t) return;
+          staffValidateTicket(t.paymentHash, t.name, t.code, btn.dataset.staffAction);
+        });
+      });
 
       // Scroll to result
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });

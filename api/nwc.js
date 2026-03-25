@@ -76,9 +76,14 @@ export default async function handler(req, res) {
         if (isNaN(amount) || amount <= 0 || amount > 10000000) {
           return res.status(400).json({ error: 'Invalid amount (must be 1-10000000 msats)' });
         }
+        // Sanitize description (max 500 chars, strip control characters)
+        const description = String(params.description).slice(0, 500).replace(/[\x00-\x1f\x7f]/g, '');
+        if (!description.trim()) {
+          return res.status(400).json({ error: 'Description cannot be empty' });
+        }
         result = await client.makeInvoice({
           amount: amount,
-          description: params.description
+          description: description
         });
         // Return normalized invoice data
         res.status(200).json({
@@ -140,6 +145,6 @@ export default async function handler(req, res) {
     }
   } catch (err) {
     console.error('NWC API error:', err.message);
-    res.status(500).json({ error: err.message || 'NWC request failed' });
+    res.status(500).json({ error: 'Payment processing failed. Please try again.' });
   }
 }
