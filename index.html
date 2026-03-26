@@ -2194,12 +2194,18 @@
     // ── VERIFICACIÓN DE PAGO VIA NWC (NIP-47) ────────────
     function startPaymentVerification() {
       let checks = 0;
-      const maxChecks = 120; // 10 min at 5s intervals
+      const maxChecks = 120; // 10 min max
+      let consecutiveErrors = 0;
+      const BASE_INTERVAL = 5000; // 5s base
+      let currentInterval = BASE_INTERVAL;
 
-      paymentCheckInterval = setInterval(async () => {
+      function scheduleNextCheck() {
+        paymentCheckInterval = setTimeout(doCheck, currentInterval);
+      }
+
+      async function doCheck() {
         checks++;
         if (checks > maxChecks) {
-          clearInterval(paymentCheckInterval);
           document.getElementById('waitingText').textContent = 'Timeout — invoice expirado';
           return;
         }
@@ -2208,12 +2214,15 @@
           let result, isPaid, preimage, settledAt;
 
           if (useBackendAPI) {
-            // v3.0: Server-side verification (all validation done server-side)
+            // v3.2: Server-side verification with progressive backoff on relay errors
             result = await nwcAPI('lookup_invoice', { payment_hash: currentPaymentHash });
             console.log(`lookupInvoice #${checks} (backend):`, JSON.stringify(result));
             isPaid = result.paid === true;
             preimage = result.preimage;
             settledAt = result.settled_at;
+            // Reset backoff on success
+            consecutiveErrors = 0;
+            currentInterval = BASE_INTERVAL;
           } else {
             // Fallback: direct NWC lookup
             result = await nwcClient.lookupInvoice({ payment_hash: currentPaymentHash });
@@ -2241,25 +2250,38 @@
               if (!isNaN(paidMsats) && paidMsats < expectedMsats) {
                 console.warn(`VULN-002 BLOCKED: Paid ${paidMsats} msats but expected ${expectedMsats} msats`);
                 document.getElementById('waitingText').textContent = 'Error: monto insuficiente';
-                clearInterval(paymentCheckInterval);
                 showToast(`Pago rechazado: ${Math.floor(paidMsats/1000)} sats < ${selectedEvent.price} sats requeridos`, 'error');
                 return;
               }
             }
-            clearInterval(paymentCheckInterval);
+            // Payment confirmed! No more polling
             // Normalize the result object
             result.preimage = preimage || result?.preimage || 'verified';
             result.settled_at = settledAt || Math.floor(Date.now() / 1000);
             console.log('Payment verified! Amount validated.', JSON.stringify(result));
             await onPaymentVerified(result);
+            return; // Don't schedule next check
           } else {
             document.getElementById('waitingText').textContent =
               `Verificando pago via NWC... (${checks}/${maxChecks})`;
           }
         } catch (err) {
-          console.log('Lookup error (retry):', err.message);
+          consecutiveErrors++;
+          // v3.2: Progressive backoff on relay errors (5s → 8s → 12s → 15s max)
+          if (consecutiveErrors >= 3) {
+            currentInterval = Math.min(BASE_INTERVAL * 3, 15000);
+            document.getElementById('waitingText').textContent =
+              `Relay lento — verificando cada ${Math.round(currentInterval/1000)}s... (${checks})`;
+          } else {
+            currentInterval = Math.min(BASE_INTERVAL * 1.5, 8000);
+          }
+          console.log(`Lookup error #${checks} (next in ${currentInterval}ms):`, err.message);
         }
-      }, 5000);
+        scheduleNextCheck();
+      }
+
+      // Start first check
+      scheduleNextCheck();
     }
 
     async function onPaymentVerified(paymentResult) {
