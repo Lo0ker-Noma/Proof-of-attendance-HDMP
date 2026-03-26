@@ -1680,8 +1680,16 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, params })
       });
-      if (!res.ok) throw new Error(`API ${res.status}: ${(await res.json()).error || 'failed'}`);
-      return res.json();
+      // v3.1: Safe JSON parsing — Vercel 504 returns HTML, not JSON
+      let data;
+      try {
+        data = await res.json();
+      } catch (parseErr) {
+        // Response was not JSON (e.g. Vercel 504 HTML page)
+        throw new Error(`API ${res.status}: Relay lento — reintentá en unos segundos`);
+      }
+      if (!res.ok) throw new Error(`API ${res.status}: ${data.error || 'failed'}`);
+      return data;
     }
 
     // ── STATE ────────────────────────────────────────────
@@ -2092,36 +2100,56 @@
     }
 
     // ── GENERAR INVOICE VIA NWC (NIP-47) ─────────────────
+    const MAX_INVOICE_RETRIES = 3;
+
     window.generateInvoiceNWC = async function() {
       const btn = document.getElementById('generateBtn');
       btn.disabled = true;
-      btn.textContent = '⏳ Generando invoice via NWC...';
 
       currentName = sanitizeInput(document.getElementById('attendeeName').value) || 'Anónimo';
       currentNpub = sanitizeInput(document.getElementById('attendeeNpub').value) || '';
 
-      try {
-        let invoiceResult;
-        const desc = `HDMP Reserva — ${currentName} — ${selectedEvent.name} ${selectedEvent.dateShort}`;
-        const amountMsats = selectedEvent.price * 1000;
+      const desc = `HDMP Reserva — ${currentName} — ${selectedEvent.name} ${selectedEvent.dateShort}`;
+      const amountMsats = selectedEvent.price * 1000;
 
-        if (useBackendAPI) {
-          // v3.0: Server-side invoice generation (NWC secret never in browser)
-          invoiceResult = await nwcAPI('make_invoice', { amount: amountMsats, description: desc });
-          console.log('Backend makeInvoice result:', Object.keys(invoiceResult));
-          currentInvoice = invoiceResult.invoice || '';
-          currentPaymentHash = invoiceResult.payment_hash || '';
-        } else {
-          // Fallback: direct NWC (dev mode)
-          invoiceResult = await nwcClient.makeInvoice({ amount: amountMsats, description: desc });
-          console.log('NWC makeInvoice result keys:', Object.keys(invoiceResult));
-          currentInvoice = invoiceResult.paymentRequest || invoiceResult.payment_request || invoiceResult.invoice || invoiceResult.bolt11 || '';
-          currentPaymentHash = invoiceResult.paymentHash || invoiceResult.payment_hash || '';
+      // v3.1: Retry logic for slow relays (Primal can timeout on first connect)
+      let invoiceResult = null;
+      let lastError = null;
+
+      for (let attempt = 1; attempt <= MAX_INVOICE_RETRIES; attempt++) {
+        btn.textContent = attempt === 1
+          ? '⏳ Generando invoice via NWC...'
+          : `⏳ Reintentando... (${attempt}/${MAX_INVOICE_RETRIES})`;
+
+        try {
+          if (useBackendAPI) {
+            invoiceResult = await nwcAPI('make_invoice', { amount: amountMsats, description: desc });
+            console.log(`Backend makeInvoice attempt ${attempt} result:`, Object.keys(invoiceResult));
+            currentInvoice = invoiceResult.invoice || '';
+            currentPaymentHash = invoiceResult.payment_hash || '';
+          } else {
+            invoiceResult = await nwcClient.makeInvoice({ amount: amountMsats, description: desc });
+            console.log(`NWC makeInvoice attempt ${attempt} result keys:`, Object.keys(invoiceResult));
+            currentInvoice = invoiceResult.paymentRequest || invoiceResult.payment_request || invoiceResult.invoice || invoiceResult.bolt11 || '';
+            currentPaymentHash = invoiceResult.paymentHash || invoiceResult.payment_hash || '';
+          }
+
+          if (currentInvoice) break; // Success!
+          lastError = new Error('Wallet no devolvió invoice válido');
+        } catch (err) {
+          console.warn(`makeInvoice attempt ${attempt} failed:`, err.message);
+          lastError = err;
+          if (attempt < MAX_INVOICE_RETRIES) {
+            showToast(`Relay lento — reintentando (${attempt}/${MAX_INVOICE_RETRIES})...`, 'info');
+            await new Promise(r => setTimeout(r, 1500)); // Brief pause before retry
+          }
         }
+      }
 
+      try {
         if (!currentInvoice) {
-          console.error('NWC makeInvoice returned no invoice. Full result:', JSON.stringify(invoiceResult));
-          showToast('Error: la wallet no devolvió un invoice válido', 'error');
+          console.error('All makeInvoice attempts failed. Last error:', lastError?.message);
+          showToast('Error: no se pudo generar invoice después de ' + MAX_INVOICE_RETRIES + ' intentos — relay lento', 'error');
           btn.disabled = false;
           btn.textContent = '⚡ Generar Invoice via NWC';
           return;

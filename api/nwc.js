@@ -1,13 +1,10 @@
 // ══════════════════════════════════════════════════════════════
-// HDMP v3.0 — Serverless NWC Backend (Vercel Edge Function)
+// HDMP v3.1 — Serverless NWC Backend (Vercel Function)
 // NWC secret stays server-side, never exposed to the client
+// v3.1: Added timeout wrapper to prevent Vercel 504 on slow relays
 // ══════════════════════════════════════════════════════════════
 
 const NWC_URL = process.env.NWC_URL;
-
-// In-memory relay + NWC via raw Nostr protocol
-// Since we can't use the full @getalby/sdk in serverless (WebSocket deps),
-// we proxy requests through a lightweight NIP-47 implementation
 
 import crypto from 'crypto';
 
@@ -19,6 +16,18 @@ const NWC_METHODS = {
   PAY_INVOICE: 'pay_invoice',
   GET_INFO: 'get_info'
 };
+
+// ── Timeout wrapper (Vercel free tier = 10s, we use 8s to respond gracefully) ──
+const NWC_OP_TIMEOUT_MS = 8000;
+
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timeout after ${ms}ms — relay may be slow`)), ms)
+    )
+  ]);
+}
 
 // Parse NWC URL into components
 function parseNwcUrl(nwcUrl) {
@@ -59,10 +68,11 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Invalid action', valid: Object.keys(NWC_METHODS) });
   }
 
+  let client;
   try {
     // Dynamic import of @getalby/sdk
     const { nwc } = await import('@getalby/sdk');
-    const client = new nwc.NWCClient({ nostrWalletConnectUrl: NWC_URL });
+    client = new nwc.NWCClient({ nostrWalletConnectUrl: NWC_URL });
 
     let result;
 
@@ -81,25 +91,27 @@ export default async function handler(req, res) {
         if (!description.trim()) {
           return res.status(400).json({ error: 'Description cannot be empty' });
         }
-        result = await client.makeInvoice({
-          amount: amount,
-          description: description
-        });
+        result = await withTimeout(
+          client.makeInvoice({ amount, description }),
+          NWC_OP_TIMEOUT_MS,
+          'makeInvoice'
+        );
         // Return normalized invoice data
-        res.status(200).json({
+        return res.status(200).json({
           invoice: result.paymentRequest || result.payment_request || result.invoice || result.bolt11 || '',
           payment_hash: result.paymentHash || result.payment_hash || '',
           amount: amount
         });
-        break;
 
       case 'lookup_invoice':
         if (!params?.payment_hash) {
           return res.status(400).json({ error: 'payment_hash required' });
         }
-        result = await client.lookupInvoice({
-          payment_hash: params.payment_hash
-        });
+        result = await withTimeout(
+          client.lookupInvoice({ payment_hash: params.payment_hash }),
+          NWC_OP_TIMEOUT_MS,
+          'lookupInvoice'
+        );
         // Unwrap NIP-47 response wrappers
         if (result?.result && typeof result.result === 'object') result = result.result;
         if (result?.response && typeof result.response === 'object') result = result.response;
@@ -116,35 +128,42 @@ export default async function handler(req, res) {
         // VULN-002: Include amount for client-side validation
         const invoiceAmount = result?.amount || result?.amount_msat || result?.amount_msats || null;
 
-        res.status(200).json({
+        return res.status(200).json({
           paid: isPaid,
           preimage: preimage || null,
           settled_at: settledAt || null,
           state: stateStr || 'pending',
           amount: invoiceAmount
         });
-        break;
 
       case 'get_balance':
-        result = await client.getBalance();
-        res.status(200).json({
+        result = await withTimeout(client.getBalance(), NWC_OP_TIMEOUT_MS, 'getBalance');
+        return res.status(200).json({
           balance: result?.balance || 0
         });
-        break;
 
       case 'get_info':
-        result = await client.getInfo();
-        res.status(200).json({
+        result = await withTimeout(client.getInfo(), NWC_OP_TIMEOUT_MS, 'getInfo');
+        return res.status(200).json({
           alias: result?.alias || 'HDMP Wallet',
           connected: true
         });
-        break;
 
       default:
-        res.status(400).json({ error: 'Unknown action' });
+        return res.status(400).json({ error: 'Unknown action' });
     }
   } catch (err) {
     console.error('NWC API error:', err.message);
-    res.status(500).json({ error: 'Payment processing failed. Please try again.' });
+    // Always return valid JSON — prevents "not valid JSON" client error
+    const isTimeout = err.message?.includes('timeout');
+    return res.status(isTimeout ? 504 : 500).json({
+      error: isTimeout
+        ? 'Relay lento — reintentá en unos segundos'
+        : 'Payment processing failed. Please try again.',
+      timeout: isTimeout
+    });
+  } finally {
+    // Clean up WebSocket connection to prevent hanging
+    try { if (client?.close) client.close(); } catch (_) {}
   }
 }
