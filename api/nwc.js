@@ -89,13 +89,90 @@ async function makeInvoiceViaLNURL(lud16, amountMsats, description) {
   const bolt11 = invoiceRes.pr;
   if (!bolt11) throw new Error('LNURL: no invoice returned');
 
-  // Extract payment hash from bolt11 (it's after lnbc and amount prefix)
-  // We'll let the client handle payment hash extraction if needed
+  // Extract payment hash from bolt11 using @getalby/lightning-tools or manual decode
+  let paymentHash = invoiceRes.payment_hash || invoiceRes.paymentHash || '';
+  if (!paymentHash) {
+    try {
+      paymentHash = extractPaymentHashFromBolt11(bolt11);
+      console.log('Extracted payment_hash from bolt11:', paymentHash.slice(0, 16) + '...');
+    } catch (e) {
+      console.warn('Could not extract payment_hash from bolt11:', e.message);
+    }
+  }
+
   return {
     invoice: bolt11,
-    payment_hash: invoiceRes.payment_hash || invoiceRes.paymentHash || '',
+    payment_hash: paymentHash,
     via: 'lnurl'
   };
+}
+
+// ── Extract payment hash from bolt11 invoice (bech32 decode) ──
+// bolt11 format: lnbc<amount><multiplier>1<bech32data><signature>
+// The payment hash is the first tagged field (tag 'p' = 1, 52 5-bit words = 32 bytes)
+function extractPaymentHashFromBolt11(bolt11) {
+  const BECH32_ALPHABET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+
+  // Find the separator '1' (last occurrence before data)
+  const lower = bolt11.toLowerCase();
+  const sepIdx = lower.lastIndexOf('1');
+  if (sepIdx < 0) throw new Error('No bech32 separator');
+
+  const dataStr = lower.slice(sepIdx + 1);
+  // Remove checksum (6 chars) and signature (104 chars at end)
+  // Signature is 520 bits = 104 bech32 chars, plus 6 checksum
+  const withoutSigAndChecksum = dataStr.slice(0, dataStr.length - 110);
+
+  // Convert bech32 chars to 5-bit values
+  const data5bit = [];
+  for (const ch of withoutSigAndChecksum) {
+    const idx = BECH32_ALPHABET.indexOf(ch);
+    if (idx < 0) throw new Error(`Invalid bech32 char: ${ch}`);
+    data5bit.push(idx);
+  }
+
+  // Skip timestamp (first 7 x 5-bit words = 35 bits)
+  let pos = 7;
+
+  // Parse tagged fields until we find 'p' (payment hash)
+  while (pos < data5bit.length) {
+    if (pos + 3 > data5bit.length) break;
+    const tag = data5bit[pos]; // 5-bit tag
+    pos++;
+    // Data length: next 2 x 5-bit words (10 bits)
+    const dataLen = (data5bit[pos] << 5) | data5bit[pos + 1];
+    pos += 2;
+
+    if (pos + dataLen > data5bit.length) break;
+
+    if (tag === 1) { // tag 'p' = payment hash (value 1 in 5-bit)
+      // Convert 5-bit words to bytes (8-bit)
+      const words = data5bit.slice(pos, pos + dataLen);
+      const bytes = convert5to8(words);
+      // Payment hash is 32 bytes = 64 hex chars
+      return bytes.map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    pos += dataLen;
+  }
+
+  throw new Error('Payment hash tag not found in bolt11');
+}
+
+// Convert array of 5-bit values to 8-bit bytes
+function convert5to8(data5) {
+  let acc = 0;
+  let bits = 0;
+  const result = [];
+  for (const val of data5) {
+    acc = (acc << 5) | val;
+    bits += 5;
+    while (bits >= 8) {
+      bits -= 8;
+      result.push((acc >> bits) & 0xff);
+    }
+  }
+  return result;
 }
 
 // ── CORS Headers ──
