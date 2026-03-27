@@ -1586,6 +1586,23 @@
         </div>
       </div>
 
+      <!-- v3.2: Lista de Asistentes -->
+      <div class="staff-log" style="margin-top:24px">
+        <div class="staff-log-title">👥 Lista de Asistentes</div>
+        <div style="padding:8px 0">
+          <input type="text" id="staffSearchInput" placeholder="Buscar por nombre o código..."
+            style="width:100%;padding:10px 14px;border-radius:var(--radius-sm);border:1px solid var(--border-glass);
+            background:var(--bg-glass);color:var(--text);font-size:0.9rem;outline:none;
+            font-family:'Inter',sans-serif;backdrop-filter:var(--glass-blur)"
+            oninput="renderAttendeeList()">
+        </div>
+        <div id="staffAttendeeList" style="max-height:400px;overflow-y:auto">
+          <div style="text-align:center;color:var(--text-dim);font-size:0.85rem;padding:20px">
+            Cargando reservas...
+          </div>
+        </div>
+      </div>
+
       <button class="btn btn-secondary" style="margin-top:24px" onclick="staffLogout()">
         🔒 Cerrar sesión Staff
       </button>
@@ -2973,6 +2990,7 @@
           showToast('Acceso Staff verificado', 'success');
           startQrScanner();
           updateStaffStats();
+          renderAttendeeList();
           return;
         }
       } catch (apiErr) {
@@ -2988,6 +3006,65 @@
       errEl.style.display = 'block';
       ['pin1','pin2','pin3','pin4'].forEach(id => { document.getElementById(id).value = ''; });
       document.getElementById('pin1').focus();
+    };
+
+    // ── v3.2: LISTA DE ASISTENTES PARA STAFF ──────────────
+    window.renderAttendeeList = function() {
+      const container = document.getElementById('staffAttendeeList');
+      if (!container) return;
+
+      const reservations = getReservations();
+      const staffValidations = JSON.parse(localStorage.getItem('hdmp_staff_validations') || '[]');
+      const searchTerm = (document.getElementById('staffSearchInput')?.value || '').toLowerCase().trim();
+
+      // Filter by search term
+      const filtered = searchTerm
+        ? reservations.filter(r =>
+            (r.name || '').toLowerCase().includes(searchTerm) ||
+            (r.ticketCode || '').toLowerCase().includes(searchTerm))
+        : reservations;
+
+      if (filtered.length === 0) {
+        container.innerHTML = `<div style="text-align:center;color:var(--text-dim);font-size:0.85rem;padding:20px">
+          ${reservations.length === 0 ? 'No hay reservas registradas' : 'No se encontraron resultados'}
+        </div>`;
+        return;
+      }
+
+      // Sort: most recent first
+      const sorted = [...filtered].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+      container.innerHTML = sorted.map((r, i) => {
+        // Check staff validation status
+        const validation = staffValidations.find(v => v.paymentHash === r.paymentHash);
+        const hasEntrada = validation?.entrada;
+        const hasConsumo = validation?.consumicion;
+        const entradaBadge = hasEntrada
+          ? '<span style="background:#10b981;color:#fff;padding:2px 6px;border-radius:6px;font-size:0.7rem">✅ Entrada</span>'
+          : '<span style="background:var(--bg-glass);color:var(--text-dim);padding:2px 6px;border-radius:6px;font-size:0.7rem">⬜ Entrada</span>';
+        const consumoBadge = hasConsumo
+          ? '<span style="background:#8b5cf6;color:#fff;padding:2px 6px;border-radius:6px;font-size:0.7rem">🍺 Consumición</span>'
+          : '<span style="background:var(--bg-glass);color:var(--text-dim);padding:2px 6px;border-radius:6px;font-size:0.7rem">⬜ Consumición</span>';
+
+        const name = sanitizeInput(r.name || 'Anónimo');
+        const code = sanitizeInput(r.ticketCode || '—');
+        const event = sanitizeInput(r.eventId || '');
+        const amount = r.amount || '?';
+        const date = r.createdAt ? new Date(r.createdAt).toLocaleString('es-AR', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '';
+        const hasSig = r.serverSignature ? '🔐' : '⚠️';
+
+        return `<div style="padding:10px 12px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:4px"
+          data-attendee-code="${code}">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-weight:600;font-size:0.95rem;color:var(--text)">${hasSig} ${name}</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:0.75rem;color:var(--gold)">${code}</span>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            ${entradaBadge} ${consumoBadge}
+            <span style="font-size:0.7rem;color:var(--text-dim);margin-left:auto">${amount} sats · ${date}</span>
+          </div>
+        </div>`;
+      }).join('');
     };
 
     window.staffLogout = function() {
