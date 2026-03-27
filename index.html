@@ -2211,12 +2211,63 @@
     };
 
     // ── VERIFICACIÓN DE PAGO VIA NWC (NIP-47) ────────────
+    // v3.3: Client-side NWC fallback — browser can connect to relay even when Vercel can't
+    let directNwcClient = null; // Lazy-init client-side NWC for verification fallback
+
+    async function getDirectNwcClient() {
+      if (directNwcClient) return directNwcClient;
+      try {
+        const { nwc } = await import("https://esm.sh/@getalby/sdk@3.5.1");
+        directNwcClient = new nwc.NWCClient({ nostrWalletConnectUrl: ORG_NWC_URL });
+        console.log('Direct NWC client initialized for verification fallback');
+        return directNwcClient;
+      } catch (e) {
+        console.warn('Failed to init direct NWC client:', e.message);
+        return null;
+      }
+    }
+
+    // Client-side lookupInvoice — bypasses Vercel, connects directly to relay from browser
+    async function lookupInvoiceDirect(paymentHash) {
+      const client = await getDirectNwcClient();
+      if (!client) throw new Error('Direct NWC client not available');
+
+      const result = await withTimeout(
+        client.lookupInvoice({ payment_hash: paymentHash }),
+        8000, // 8s — browser has no Vercel timeout constraint
+        'directLookup'
+      );
+
+      // Unwrap NIP-47 response wrappers
+      let unwrapped = result;
+      if (unwrapped?.result && typeof unwrapped.result === 'object') unwrapped = unwrapped.result;
+      if (unwrapped?.response && typeof unwrapped.response === 'object') unwrapped = unwrapped.response;
+
+      const preimage = unwrapped?.preimage || unwrapped?.payment_preimage || null;
+      const settledAt = (typeof unwrapped?.settled_at === 'number' && unwrapped.settled_at > 0) ? unwrapped.settled_at
+        : (typeof unwrapped?.settledAt === 'number' && unwrapped.settledAt > 0) ? unwrapped.settledAt
+        : null;
+      const stateStr = (unwrapped?.state || unwrapped?.status || '').toString().toLowerCase();
+      const isStateSettled = stateStr === 'settled' || stateStr === 'paid' || stateStr === 'complete' || stateStr === 'completed';
+      const isPaid = (preimage && preimage.length >= 32) || settledAt || isStateSettled || unwrapped?.paid === true;
+
+      return {
+        paid: isPaid,
+        preimage: preimage || null,
+        settled_at: settledAt || null,
+        state: stateStr || 'pending',
+        amount: unwrapped?.amount || unwrapped?.amount_msat || unwrapped?.amount_msats || null,
+        via: 'nwc-direct'
+      };
+    }
+
     function startPaymentVerification() {
       let checks = 0;
       const maxChecks = 120; // 10 min max
-      let consecutiveErrors = 0;
-      const BASE_INTERVAL = 5000; // 5s base
+      let serverErrors = 0;
+      const BASE_INTERVAL = 4000; // 4s base (faster than before)
       let currentInterval = BASE_INTERVAL;
+      let usingDirectClient = false;
 
       function scheduleNextCheck() {
         paymentCheckInterval = setTimeout(doCheck, currentInterval);
@@ -2232,25 +2283,34 @@
         try {
           let result, isPaid, preimage, settledAt;
 
-          if (useBackendAPI) {
-            // v3.2: Server-side verification with progressive backoff on relay errors
+          // v3.3: After 2 server failures, switch to direct client-side NWC
+          // Browser can connect to relay even when Vercel serverless can't
+          if (usingDirectClient || serverErrors >= 2) {
+            if (!usingDirectClient) {
+              console.log('Switching to direct client-side NWC verification (browser → relay)');
+              document.getElementById('waitingText').textContent =
+                '⚡ Conectando directo al relay...';
+              usingDirectClient = true;
+            }
+            result = await lookupInvoiceDirect(currentPaymentHash);
+            console.log(`lookupInvoice #${checks} (direct):`, JSON.stringify(result));
+            isPaid = result.paid === true;
+            preimage = result.preimage;
+            settledAt = result.settled_at;
+          } else if (useBackendAPI) {
+            // Try server-side first
             result = await nwcAPI('lookup_invoice', { payment_hash: currentPaymentHash, verify_url: currentVerifyUrl });
             console.log(`lookupInvoice #${checks} (backend):`, JSON.stringify(result));
             isPaid = result.paid === true;
             preimage = result.preimage;
             settledAt = result.settled_at;
-            // Reset backoff on success
-            consecutiveErrors = 0;
-            currentInterval = BASE_INTERVAL;
+            serverErrors = 0; // Reset on success
           } else {
-            // Fallback: direct NWC lookup
+            // Manual NWC client (dev mode)
             result = await nwcClient.lookupInvoice({ payment_hash: currentPaymentHash });
             console.log(`lookupInvoice #${checks}:`, JSON.stringify(result, null, 2));
-
-            // NIP-47 responses may wrap the actual data in .result or .response
             if (result?.result && typeof result.result === 'object') result = result.result;
             if (result?.response && typeof result.response === 'object') result = result.response;
-
             preimage = result?.preimage || result?.payment_preimage || null;
             settledAt = (typeof result?.settled_at === 'number' && result.settled_at > 0) ? result.settled_at
               : (typeof result?.settledAt === 'number' && result.settledAt > 0) ? result.settledAt
@@ -2274,38 +2334,38 @@
               }
             }
             // Payment confirmed! No more polling
-            // Normalize the result object
             result.preimage = preimage || result?.preimage || 'verified';
             result.settled_at = settledAt || Math.floor(Date.now() / 1000);
-            console.log('Payment verified! Amount validated.', JSON.stringify(result));
+            const viaLabel = result.via === 'nwc-direct' ? '(direct)' : '(server)';
+            console.log(`Payment verified ${viaLabel}! Amount validated.`, JSON.stringify(result));
+            // Close direct client if used
+            if (directNwcClient) { try { directNwcClient.close(); } catch(_){} directNwcClient = null; }
             await onPaymentVerified(result);
             return; // Don't schedule next check
           } else {
-            // v3.3: Show which method is being used for verification
-            const viaLabel = result?.via === 'lnurl-verify' || result?.via === 'lnurl-verify-constructed'
-              ? 'LNURL' : 'NWC';
+            const viaLabel = usingDirectClient ? 'NWC directo' : 'NWC servidor';
             document.getElementById('waitingText').textContent =
               `Verificando pago via ${viaLabel}... (${checks}/${maxChecks})`;
-            // Reset backoff on successful response (even if not yet paid)
-            consecutiveErrors = 0;
             currentInterval = BASE_INTERVAL;
           }
         } catch (err) {
-          consecutiveErrors++;
-          // v3.3: Progressive backoff on relay errors, but faster if LNURL verify available
-          if (consecutiveErrors >= 2 && currentVerifyUrl) {
-            // LNURL verify available — keep polling at base interval, it should work via HTTP
-            currentInterval = BASE_INTERVAL;
-            document.getElementById('waitingText').textContent =
-              `Verificando pago via LNURL... (${checks})`;
-          } else if (consecutiveErrors >= 3) {
-            currentInterval = Math.min(BASE_INTERVAL * 3, 15000);
-            document.getElementById('waitingText').textContent =
-              `Relay lento — verificando cada ${Math.round(currentInterval/1000)}s... (${checks})`;
+          if (!usingDirectClient) {
+            serverErrors++;
+            if (serverErrors >= 2) {
+              // Will switch to direct on next check
+              document.getElementById('waitingText').textContent =
+                '⚡ Servidor lento — cambiando a verificación directa...';
+              currentInterval = 1000; // Quick retry with direct client
+            } else {
+              currentInterval = Math.min(BASE_INTERVAL * 1.5, 8000);
+            }
           } else {
-            currentInterval = Math.min(BASE_INTERVAL * 1.5, 8000);
+            // Direct client also failed — backoff
+            currentInterval = Math.min(BASE_INTERVAL * 2, 10000);
+            document.getElementById('waitingText').textContent =
+              `Verificando pago via NWC directo... (${checks})`;
           }
-          console.log(`Lookup error #${checks} (next in ${currentInterval}ms):`, err.message);
+          console.log(`Lookup error #${checks} (${usingDirectClient ? 'direct' : 'server'}, next in ${currentInterval}ms):`, err.message);
         }
         scheduleNextCheck();
       }
@@ -2612,6 +2672,7 @@
       currentInvoice = null;
       currentPaymentHash = null;
       currentVerifyUrl = null;
+      if (directNwcClient) { try { directNwcClient.close(); } catch(_){} directNwcClient = null; }
 
       document.getElementById('step-form').style.display = 'block';
       document.getElementById('step-payment').style.display = 'none';
