@@ -1,6 +1,6 @@
-# ⚡ Proof of Attendance (HDMP) — v3.1
+# ⚡ Proof of Attendance (HDMP) — v3.2
 
-> Sistema de **reservas con pagos Lightning reales**, **Zaps publicados en relays Nostr**, **verificación de tickets por staff con QR scanner** y **página de verificación pública** para eventos presenciales. Usa Nostr Wallet Connect (NIP-47), Zaps (NIP-57), backend serverless en Vercel, firmas HMAC-SHA256, 4 rondas de pentesting y publicación real en relays Nostr.
+> Sistema de **reservas con pagos Lightning reales**, **Zaps publicados en relays Nostr**, **verificación de tickets por staff con QR scanner** y **página de verificación pública** para eventos presenciales. Usa Nostr Wallet Connect (NIP-47) + LNURL fallback, Zaps (NIP-57), backend serverless en Vercel, firmas HMAC-SHA256, 4 rondas de pentesting y publicación real en relays Nostr.
 
 **Construido para la Lightning Hackathon FOUNDATIONS 2026 de La Crypta.**
 
@@ -80,7 +80,7 @@ v3.0.1 — Fixes de seguridad:
 🟡 MEDIUM: paymentHash validado con regex /^[a-f0-9]{64}$/i en staff-verify
 ```
 
-### v3.1 — Zaps en relays reales + Verificación pública (semana 4, actual)
+### v3.1 — Zaps en relays reales + Verificación pública (semana 4)
 
 Las dos features que cierran el ciclo del proof-of-attendance:
 
@@ -94,6 +94,38 @@ v3.1 — Lo nuevo:
 ✅ Cada ticket incluye URL compartible de verificación
 ✅ hashchange listener para navegación dinámica de verify links
 ✅ Ticket muestra status de publicación en relays post-pago
+```
+
+### v3.2 — LNURL Fallback + Resiliencia de pagos (semana 4, actual)
+
+La v3.1 dependía 100% del relay NWC de Primal para crear invoices y verificar pagos. Cuando el relay no responde (si la app Primal no está abierta), toda la app se caía. La v3.2 resuelve esto con un sistema de fallback multi-protocolo:
+
+```
+v3.2 — Lo nuevo:
+
+✅ LNURL-pay fallback: cuando el relay NWC falla, genera invoices via Lightning Address (HTTP puro)
+✅ Decodificación bolt11: extrae payment_hash del invoice sin depender del relay
+✅ Timeout server-side: NWC 5s + LNURL 4s = siempre responde antes del límite de Vercel (10s)
+✅ JSON seguro: el servidor SIEMPRE devuelve JSON válido, nunca HTML de error
+✅ Retry automático: hasta 3 intentos con mensajes "Relay lento — reintentando"
+✅ Backoff progresivo: verificación de pago 5s → 8s → 15s cuando el relay está lento
+✅ get_info resiliente: devuelve "connected" cuando LNURL está disponible (no depende del relay)
+✅ Cleanup WebSocket: cierra conexiones en finally block (previene memory leaks)
+```
+
+El flujo ahora es:
+
+```
+Generar Invoice:
+  1. Intenta NWC (relay) — timeout 5s
+  2. Si falla → LNURL-pay (HTTP) — timeout 4s
+  3. Si falla → Retry (hasta 3 veces)
+  4. Siempre devuelve JSON al cliente
+
+Verificar Pago:
+  1. Polling NWC con backoff progresivo (5s → 8s → 15s)
+  2. Manejo graceful de errores sin crashear la UI
+  3. Mensaje "Relay lento" al usuario
 ```
 
 ---
@@ -110,11 +142,13 @@ Un sistema de reservas para eventos donde:
 6. Todo es **verificable públicamente**: los Zaps se pueden buscar en njump.me o nostr.band
 
 ```
-Flujo completo v3.1:
+Flujo completo v3.2:
 
-Asistente paga 2100 sats
+Asistente paga sats
         ↓
-NWC verifica pago (preimage + settled_at)
+NWC genera invoice (relay) ──timeout──→ LNURL fallback (HTTP)
+        ↓
+NWC verifica pago (preimage + settled_at) — con backoff progresivo
         ↓
 Server firma ticket con HMAC-SHA256
         ↓
@@ -301,9 +335,19 @@ El corazón de los pagos. NWC reemplaza la Lightning Address como backend:
 - **`makeInvoice`** — Crear invoices desde la wallet del organizador (server-side)
 - **`lookupInvoice`** — Verificar automáticamente si un pago fue completado (polling con preimage)
 - **`getBalance`** — Mostrar el balance de la wallet en el panel del organizador
-- **`getInfo`** — Verificar conexión con la wallet (con timeout 8s + fallback)
+- **`getInfo`** — Verificar conexión con la wallet (con timeout 5s + LNURL fallback)
 
 La wallet del organizador (La Crypta / Primal) se conecta automáticamente al cargar la app. Compatible con **Primal**, **Alby**, **Mutiny** y cualquier wallet NIP-47. Normalización robusta de respuestas: `paymentRequest`/`payment_request`/`invoice`/`bolt11`, `preimage`/`payment_preimage`, `settled_at`/`settledAt`/`state`/`status`.
+
+### LNURL-pay — Fallback HTTP (v3.2)
+
+Cuando el relay NWC no responde (frecuente con Primal si la app no está abierta), el backend cae automáticamente a **LNURL-pay** usando la Lightning Address del NWC URL (`lud16`). El flujo LNURL es 100% HTTP (sin WebSocket), mucho más rápido y confiable:
+
+- **Resolve Lightning Address** — `user@domain` → `https://domain/.well-known/lnurlp/user`
+- **Fetch callback URL** — Obtiene `callback`, `minSendable`, `maxSendable`
+- **Request invoice** — Llama al callback con `amount` y `comment`
+- **Decode payment_hash** — Extrae el payment hash del bolt11 con decoder bech32 custom
+- **No requiere relay** — Funciona aunque el relay NWC esté caído
 
 ### NIP-57 — Zaps (publicados en relays reales)
 
@@ -316,7 +360,7 @@ Esto crea un **registro verificable e inmutable** de cada pago en el protocolo N
 
 ---
 
-## Arquitectura v3.1
+## Arquitectura v3.2
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -336,18 +380,20 @@ Esto crea un **registro verificable e inmutable** de cada pago en el protocolo N
 │                                                             │
 │  ┌──────────────┐  ┌──────────────┐  ┌───────────────┐      │
 │  │ /api/nwc     │  │ /api/verify  │  │ /api/staff    │      │
-│  │ NWC proxy    │  │ -ticket      │  │ -verify       │      │
+│  │ NWC + LNURL  │  │ -ticket      │  │ -verify       │      │
 │  │ make_invoice │  │ sign (HMAC)  │  │ verify PIN    │      │
 │  │ lookup_inv   │  │ verify sig   │  │ validate tix  │      │
 │  │ get_balance  │  │              │  │ rate limiting  │      │
 │  │ get_info     │  │              │  │ timingSafeEq   │      │
+│  │ bolt11 decode│  │              │  │               │      │
 │  └──────┬───────┘  └──────────────┘  └───────────────┘      │
 │         │                                                   │
 │  env: NWC_URL, TICKET_SECRET, STAFF_PIN                     │
 └─────────┼───────────────────────────────────────────────────┘
-          │ WSS (NIP-47)
+          │ WSS (NIP-47) + HTTPS (LNURL fallback)
 ┌─────────┴───────────────────────────────────────────────────┐
-│  NOSTR RELAY (wss://relay.primal.net)  ← NWC payments       │
+│  NWC RELAY (wss://relay.primal.net)    ← NWC payments       │
+│  LNURL (primal.net/lnurlp/*)          ← HTTP fallback       │
 │  PUBLISH RELAYS:                       ← Zap events         │
 │    wss://relay.damus.io                                     │
 │    wss://nos.lol                                            │
@@ -540,7 +586,7 @@ vercel --prod
 | Herramienta | Uso |
 |---|---|
 | **Vite** | Build tool y dev server |
-| **@getalby/sdk@3.5.1** | NWC client (NIP-47) — invoices, verificación, balance |
+| **@getalby/sdk@3.5.1** | NWC client (NIP-47) — invoices, verificación, balance + LNURL-pay fallback |
 | **nostr-tools@2.7.0** | Creación, firma y **publicación** de eventos Nostr (NIP-57 Zaps) |
 | **nostr-tools/pool** | `SimplePool` para publicar en múltiples relays simultáneamente |
 | **@noble/hashes** | Utilidades criptográficas (client-side) |
@@ -565,7 +611,7 @@ vercel --prod
 ├── package.json                  # v3.0.0 con scripts de test
 ├── vite.config.js                # Config de Vite
 ├── PROJECT.md                    # Spec del proyecto
-├── CHANGELOG.md                  # Historial de cambios v1 → v3.1
+├── CHANGELOG.md                  # Historial de cambios v1 → v3.2
 ├── SECURITY-AUDIT.md             # Reporte formal de auditoría de seguridad
 ├── CLAUDE.md                     # Contexto técnico para evaluadores
 ├── AGENTS.md                     # Resumen para evaluadores IA
@@ -582,9 +628,12 @@ vercel --prod
 
 - [ ] Base de datos server-side (reemplazar localStorage por Vercel KV o Supabase)
 - [x] ~~Publicar Zaps en relays Nostr reales~~ ✅ Implementado v3.1
+- [x] ~~LNURL fallback para resiliencia~~ ✅ Implementado v3.2
+- [x] ~~Manejo de relay lento / caído~~ ✅ Implementado v3.2
 - [ ] Hash chain para audit log inmutable
 - [ ] SRI (Subresource Integrity) hashes via bundler
 - [ ] NIP-58 Nostr badges como proof-of-attendance nativo
+- [ ] LNURL-verify para verificar pagos sin relay (si Primal lo soporta)
 - [ ] App móvil nativa con scanner QR
 - [ ] Dashboard live para proyector durante el evento
 
