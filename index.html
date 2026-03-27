@@ -1715,6 +1715,7 @@
     let isDemoMode = false;
     let currentInvoice = null;
     let currentPaymentHash = null;
+    let currentVerifyUrl = null; // v3.3: LNURL verify URL for payment verification fallback
     let currentName = "";
     let currentNpub = "";
     let paymentCheckInterval = null;
@@ -2144,6 +2145,7 @@
             console.log(`Backend makeInvoice attempt ${attempt} result:`, Object.keys(invoiceResult));
             currentInvoice = invoiceResult.invoice || '';
             currentPaymentHash = invoiceResult.payment_hash || '';
+            currentVerifyUrl = invoiceResult.verify_url || null; // v3.3: LNURL verify fallback
           } else {
             invoiceResult = await nwcClient.makeInvoice({ amount: amountMsats, description: desc });
             console.log(`NWC makeInvoice attempt ${attempt} result keys:`, Object.keys(invoiceResult));
@@ -2232,7 +2234,7 @@
 
           if (useBackendAPI) {
             // v3.2: Server-side verification with progressive backoff on relay errors
-            result = await nwcAPI('lookup_invoice', { payment_hash: currentPaymentHash });
+            result = await nwcAPI('lookup_invoice', { payment_hash: currentPaymentHash, verify_url: currentVerifyUrl });
             console.log(`lookupInvoice #${checks} (backend):`, JSON.stringify(result));
             isPaid = result.paid === true;
             preimage = result.preimage;
@@ -2279,13 +2281,24 @@
             await onPaymentVerified(result);
             return; // Don't schedule next check
           } else {
+            // v3.3: Show which method is being used for verification
+            const viaLabel = result?.via === 'lnurl-verify' || result?.via === 'lnurl-verify-constructed'
+              ? 'LNURL' : 'NWC';
             document.getElementById('waitingText').textContent =
-              `Verificando pago via NWC... (${checks}/${maxChecks})`;
+              `Verificando pago via ${viaLabel}... (${checks}/${maxChecks})`;
+            // Reset backoff on successful response (even if not yet paid)
+            consecutiveErrors = 0;
+            currentInterval = BASE_INTERVAL;
           }
         } catch (err) {
           consecutiveErrors++;
-          // v3.2: Progressive backoff on relay errors (5s → 8s → 12s → 15s max)
-          if (consecutiveErrors >= 3) {
+          // v3.3: Progressive backoff on relay errors, but faster if LNURL verify available
+          if (consecutiveErrors >= 2 && currentVerifyUrl) {
+            // LNURL verify available — keep polling at base interval, it should work via HTTP
+            currentInterval = BASE_INTERVAL;
+            document.getElementById('waitingText').textContent =
+              `Verificando pago via LNURL... (${checks})`;
+          } else if (consecutiveErrors >= 3) {
             currentInterval = Math.min(BASE_INTERVAL * 3, 15000);
             document.getElementById('waitingText').textContent =
               `Relay lento — verificando cada ${Math.round(currentInterval/1000)}s... (${checks})`;
@@ -2598,6 +2611,7 @@
       if (paymentCheckInterval) clearInterval(paymentCheckInterval);
       currentInvoice = null;
       currentPaymentHash = null;
+      currentVerifyUrl = null;
 
       document.getElementById('step-form').style.display = 'block';
       document.getElementById('step-payment').style.display = 'none';

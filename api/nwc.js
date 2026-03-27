@@ -100,9 +100,16 @@ async function makeInvoiceViaLNURL(lud16, amountMsats, description) {
     }
   }
 
+  // LUD-09: capture verify URL for payment verification without relay
+  const verifyUrl = invoiceRes.verify || '';
+  if (verifyUrl) {
+    console.log('LNURL verify URL available:', verifyUrl.slice(0, 60) + '...');
+  }
+
   return {
     invoice: bolt11,
     payment_hash: paymentHash,
+    verify_url: verifyUrl,
     via: 'lnurl'
   };
 }
@@ -251,6 +258,7 @@ export default async function handler(req, res) {
               return res.status(200).json({
                 invoice: lnurlResult.invoice,
                 payment_hash: lnurlResult.payment_hash || '',
+                verify_url: lnurlResult.verify_url || '',
                 amount: amount,
                 via: 'lnurl'
               });
@@ -267,30 +275,98 @@ export default async function handler(req, res) {
         if (!params?.payment_hash) {
           return res.status(400).json({ error: 'payment_hash required' });
         }
-        result = await withTimeout(
-          client.lookupInvoice({ payment_hash: params.payment_hash }),
-          NWC_OP_TIMEOUT_MS,
-          'lookupInvoice'
-        );
-        // Unwrap NIP-47 response wrappers
-        if (result?.result && typeof result.result === 'object') result = result.result;
-        if (result?.response && typeof result.response === 'object') result = result.response;
 
-        const preimage = result?.preimage || result?.payment_preimage || null;
-        const settledAt = (typeof result?.settled_at === 'number' && result.settled_at > 0) ? result.settled_at
-          : (typeof result?.settledAt === 'number' && result.settledAt > 0) ? result.settledAt
+        // v3.3: Try NWC first, fallback to LNURL verify URL, then LNURL-pay verify
+        let lookupResult = null;
+        let lookupVia = 'nwc';
+
+        // Attempt 1: NWC relay
+        try {
+          result = await withTimeout(
+            client.lookupInvoice({ payment_hash: params.payment_hash }),
+            NWC_OP_TIMEOUT_MS,
+            'lookupInvoice'
+          );
+          // Unwrap NIP-47 response wrappers
+          if (result?.result && typeof result.result === 'object') result = result.result;
+          if (result?.response && typeof result.response === 'object') result = result.response;
+          lookupResult = result;
+          lookupVia = 'nwc';
+        } catch (nwcErr) {
+          console.warn('NWC lookupInvoice failed:', nwcErr.message);
+
+          // Attempt 2: LNURL verify URL (LUD-09) — client passes it from make_invoice response
+          if (params.verify_url) {
+            try {
+              console.log('Trying LNURL verify URL:', params.verify_url.slice(0, 60));
+              const verifyRes = await withTimeout(
+                fetch(params.verify_url).then(r => r.json()),
+                LNURL_TIMEOUT_MS,
+                'LNURL-verify'
+              );
+              console.log('LNURL verify response:', JSON.stringify(verifyRes));
+              if (verifyRes && (verifyRes.settled !== undefined || verifyRes.status)) {
+                lookupResult = {
+                  preimage: verifyRes.preimage || null,
+                  settled_at: verifyRes.settled ? Math.floor(Date.now() / 1000) : null,
+                  state: verifyRes.settled ? 'settled' : 'pending',
+                  paid: verifyRes.settled === true,
+                  amount: verifyRes.amount || null
+                };
+                lookupVia = 'lnurl-verify';
+              }
+            } catch (verifyErr) {
+              console.warn('LNURL verify URL failed:', verifyErr.message);
+            }
+          }
+
+          // Attempt 3: Construct LNURL verify URL from lud16 + payment_hash
+          if (!lookupResult && nwcParts.lud16) {
+            try {
+              const [user, domain] = nwcParts.lud16.split('@');
+              const constructedVerifyUrl = `https://${domain}/.well-known/lnurlp/${user}/verify/${params.payment_hash}`;
+              console.log('Trying constructed LNURL verify:', constructedVerifyUrl.slice(0, 80));
+              const verifyRes = await withTimeout(
+                fetch(constructedVerifyUrl).then(r => r.json()),
+                LNURL_TIMEOUT_MS,
+                'LNURL-verify-constructed'
+              );
+              console.log('Constructed verify response:', JSON.stringify(verifyRes));
+              if (verifyRes && verifyRes.status !== 'ERROR' && (verifyRes.settled !== undefined || verifyRes.pr)) {
+                lookupResult = {
+                  preimage: verifyRes.preimage || null,
+                  settled_at: verifyRes.settled ? Math.floor(Date.now() / 1000) : null,
+                  state: verifyRes.settled ? 'settled' : 'pending',
+                  paid: verifyRes.settled === true,
+                  amount: verifyRes.amount || null
+                };
+                lookupVia = 'lnurl-verify-constructed';
+              }
+            } catch (constructedErr) {
+              console.warn('Constructed LNURL verify failed:', constructedErr.message);
+            }
+          }
+
+          // If all fallbacks failed, throw the original error
+          if (!lookupResult) throw nwcErr;
+        }
+
+        const preimage = lookupResult?.preimage || lookupResult?.payment_preimage || null;
+        const settledAt = (typeof lookupResult?.settled_at === 'number' && lookupResult.settled_at > 0) ? lookupResult.settled_at
+          : (typeof lookupResult?.settledAt === 'number' && lookupResult.settledAt > 0) ? lookupResult.settledAt
           : null;
-        const stateStr = (result?.state || result?.status || '').toString().toLowerCase();
+        const stateStr = (lookupResult?.state || lookupResult?.status || '').toString().toLowerCase();
         const isStateSettled = stateStr === 'settled' || stateStr === 'paid' || stateStr === 'complete' || stateStr === 'completed';
-        const isPaid = (preimage && preimage.length >= 32) || settledAt || isStateSettled || result?.paid === true;
-        const invoiceAmount = result?.amount || result?.amount_msat || result?.amount_msats || null;
+        const isPaid = (preimage && preimage.length >= 32) || settledAt || isStateSettled || lookupResult?.paid === true;
+        const invoiceAmount = lookupResult?.amount || lookupResult?.amount_msat || lookupResult?.amount_msats || null;
 
         return res.status(200).json({
           paid: isPaid,
           preimage: preimage || null,
           settled_at: settledAt || null,
           state: stateStr || 'pending',
-          amount: invoiceAmount
+          amount: invoiceAmount,
+          via: lookupVia
         });
       }
 
