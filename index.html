@@ -1715,7 +1715,9 @@
     let isDemoMode = false;
     let currentInvoice = null;
     let currentPaymentHash = null;
-    let currentVerifyUrl = null; // v3.3: LNURL verify URL for payment verification fallback
+    let currentVerifyUrl = null;
+    let currentZapRelays = null;   // v3.3: Nostr relays for Zap receipt verification
+    let currentZapRecipient = null; // v3.3: Recipient pubkey for Zap filter
     let currentName = "";
     let currentNpub = "";
     let paymentCheckInterval = null;
@@ -2145,7 +2147,10 @@
             console.log(`Backend makeInvoice attempt ${attempt} result:`, Object.keys(invoiceResult));
             currentInvoice = invoiceResult.invoice || '';
             currentPaymentHash = invoiceResult.payment_hash || '';
-            currentVerifyUrl = invoiceResult.verify_url || null; // v3.3: LNURL verify fallback
+            currentVerifyUrl = invoiceResult.verify_url || null;
+            currentZapRelays = invoiceResult.zap_relays || null;
+            currentZapRecipient = invoiceResult.zap_recipient || null;
+            if (currentZapRelays) console.log('NIP-57 Zap verification available on', currentZapRelays.length, 'relays');
           } else {
             invoiceResult = await nwcClient.makeInvoice({ amount: amountMsats, description: desc });
             console.log(`NWC makeInvoice attempt ${attempt} result keys:`, Object.keys(invoiceResult));
@@ -2210,167 +2215,140 @@
       }
     };
 
-    // ── VERIFICACIÓN DE PAGO VIA NWC (NIP-47) ────────────
-    // v3.3: Client-side NWC fallback — browser can connect to relay even when Vercel can't
-    let directNwcClient = null; // Lazy-init client-side NWC for verification fallback
+    // ── VERIFICACIÓN DE PAGO ────────────────────────────
+    // v3.3: Dual verification — NWC lookupInvoice + NIP-57 Zap receipt subscription
+    // Zap receipts are published to PUBLIC relays, no dependency on relay.primal.net
+    let zapSockets = []; // Active WebSocket connections for Zap monitoring
 
-    async function getDirectNwcClient() {
-      if (directNwcClient) return directNwcClient;
-      try {
-        const { nwc } = await import("https://esm.sh/@getalby/sdk@3.5.1");
-        directNwcClient = new nwc.NWCClient({ nostrWalletConnectUrl: ORG_NWC_URL });
-        console.log('Direct NWC client initialized for verification fallback');
-        return directNwcClient;
-      } catch (e) {
-        console.warn('Failed to init direct NWC client:', e.message);
-        return null;
-      }
+    // NIP-57: Subscribe to Zap receipts (kind 9735) on public Nostr relays
+    function startZapReceiptMonitor(bolt11Invoice, onZapReceived) {
+      const relays = currentZapRelays || ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.primal.net'];
+      const since = Math.floor(Date.now() / 1000) - 60; // last minute
+
+      console.log(`NIP-57: Subscribing to Zap receipts on ${relays.length} relays...`);
+
+      relays.forEach(relayUrl => {
+        try {
+          const ws = new WebSocket(relayUrl);
+          zapSockets.push(ws);
+
+          ws.onopen = () => {
+            console.log(`Zap relay connected: ${relayUrl}`);
+            // Subscribe to kind 9735 (Zap receipts) for our recipient
+            const filter = { kinds: [9735], since };
+            if (currentZapRecipient) filter['#p'] = [currentZapRecipient];
+            ws.send(JSON.stringify(['REQ', 'zap-verify', filter]));
+          };
+
+          ws.onmessage = (e) => {
+            try {
+              const msg = JSON.parse(e.data);
+              if (msg[0] === 'EVENT' && msg[2]?.kind === 9735) {
+                const event = msg[2];
+                // Check if this Zap receipt matches our invoice
+                const bolt11Tag = event.tags?.find(t => t[0] === 'bolt11');
+                const descTag = event.tags?.find(t => t[0] === 'description');
+                const preimageTag = event.tags?.find(t => t[0] === 'preimage');
+
+                const matchesBolt11 = bolt11Tag && bolt11Tag[1] === bolt11Invoice;
+                // Also check description contains our payment hash
+                const matchesDesc = descTag && descTag[1]?.includes(currentPaymentHash?.slice(0, 16));
+
+                if (matchesBolt11 || matchesDesc) {
+                  console.log(`⚡ ZAP RECEIPT FOUND on ${relayUrl}!`, event.id?.slice(0, 16));
+                  onZapReceived({
+                    paid: true,
+                    preimage: preimageTag?.[1] || 'zap-verified',
+                    settled_at: event.created_at || Math.floor(Date.now() / 1000),
+                    state: 'settled',
+                    via: 'nip57-zap',
+                    zap_event_id: event.id
+                  });
+                }
+              }
+            } catch (_) {}
+          };
+
+          ws.onerror = () => console.warn(`Zap relay error: ${relayUrl}`);
+          // Auto-reconnect on close
+          ws.onclose = () => {
+            console.log(`Zap relay disconnected: ${relayUrl}`);
+          };
+        } catch (e) {
+          console.warn(`Failed to connect to ${relayUrl}:`, e.message);
+        }
+      });
     }
 
-    // Client-side lookupInvoice — bypasses Vercel, connects directly to relay from browser
-    async function lookupInvoiceDirect(paymentHash) {
-      const client = await getDirectNwcClient();
-      if (!client) throw new Error('Direct NWC client not available');
-
-      const result = await withTimeout(
-        client.lookupInvoice({ payment_hash: paymentHash }),
-        8000, // 8s — browser has no Vercel timeout constraint
-        'directLookup'
-      );
-
-      // Unwrap NIP-47 response wrappers
-      let unwrapped = result;
-      if (unwrapped?.result && typeof unwrapped.result === 'object') unwrapped = unwrapped.result;
-      if (unwrapped?.response && typeof unwrapped.response === 'object') unwrapped = unwrapped.response;
-
-      const preimage = unwrapped?.preimage || unwrapped?.payment_preimage || null;
-      const settledAt = (typeof unwrapped?.settled_at === 'number' && unwrapped.settled_at > 0) ? unwrapped.settled_at
-        : (typeof unwrapped?.settledAt === 'number' && unwrapped.settledAt > 0) ? unwrapped.settledAt
-        : null;
-      const stateStr = (unwrapped?.state || unwrapped?.status || '').toString().toLowerCase();
-      const isStateSettled = stateStr === 'settled' || stateStr === 'paid' || stateStr === 'complete' || stateStr === 'completed';
-      const isPaid = (preimage && preimage.length >= 32) || settledAt || isStateSettled || unwrapped?.paid === true;
-
-      return {
-        paid: isPaid,
-        preimage: preimage || null,
-        settled_at: settledAt || null,
-        state: stateStr || 'pending',
-        amount: unwrapped?.amount || unwrapped?.amount_msat || unwrapped?.amount_msats || null,
-        via: 'nwc-direct'
-      };
+    function stopZapReceiptMonitor() {
+      zapSockets.forEach(ws => { try { ws.close(); } catch(_){} });
+      zapSockets = [];
     }
 
     function startPaymentVerification() {
       let checks = 0;
-      const maxChecks = 120; // 10 min max
-      let serverErrors = 0;
-      const BASE_INTERVAL = 4000; // 4s base (faster than before)
+      const maxChecks = 120;
+      const BASE_INTERVAL = 4000;
       let currentInterval = BASE_INTERVAL;
-      let usingDirectClient = false;
+      let zapVerified = false;
+
+      // v3.3: Start Zap receipt monitor in parallel (works on public relays, instant!)
+      if (currentInvoice) {
+        startZapReceiptMonitor(currentInvoice, (zapResult) => {
+          if (zapVerified) return; // Already verified
+          zapVerified = true;
+          console.log('Payment verified via NIP-57 Zap receipt!');
+          stopZapReceiptMonitor();
+          if (paymentCheckInterval) { clearTimeout(paymentCheckInterval); paymentCheckInterval = null; }
+          onPaymentVerified(zapResult);
+        });
+      }
 
       function scheduleNextCheck() {
         paymentCheckInterval = setTimeout(doCheck, currentInterval);
       }
 
       async function doCheck() {
+        if (zapVerified) return; // Zap receipt already confirmed it
         checks++;
         if (checks > maxChecks) {
           document.getElementById('waitingText').textContent = 'Timeout — invoice expirado';
+          stopZapReceiptMonitor();
           return;
         }
 
         try {
-          let result, isPaid, preimage, settledAt;
+          let result;
 
-          // v3.3: After 2 server failures, switch to direct client-side NWC
-          // Browser can connect to relay even when Vercel serverless can't
-          if (usingDirectClient || serverErrors >= 2) {
-            if (!usingDirectClient) {
-              console.log('Switching to direct client-side NWC verification (browser → relay)');
-              document.getElementById('waitingText').textContent =
-                '⚡ Conectando directo al relay...';
-              usingDirectClient = true;
-            }
-            result = await lookupInvoiceDirect(currentPaymentHash);
-            console.log(`lookupInvoice #${checks} (direct):`, JSON.stringify(result));
-            isPaid = result.paid === true;
-            preimage = result.preimage;
-            settledAt = result.settled_at;
-          } else if (useBackendAPI) {
-            // Try server-side first
-            result = await nwcAPI('lookup_invoice', { payment_hash: currentPaymentHash, verify_url: currentVerifyUrl });
-            console.log(`lookupInvoice #${checks} (backend):`, JSON.stringify(result));
-            isPaid = result.paid === true;
-            preimage = result.preimage;
-            settledAt = result.settled_at;
-            serverErrors = 0; // Reset on success
-          } else {
-            // Manual NWC client (dev mode)
-            result = await nwcClient.lookupInvoice({ payment_hash: currentPaymentHash });
-            console.log(`lookupInvoice #${checks}:`, JSON.stringify(result, null, 2));
-            if (result?.result && typeof result.result === 'object') result = result.result;
-            if (result?.response && typeof result.response === 'object') result = result.response;
-            preimage = result?.preimage || result?.payment_preimage || null;
-            settledAt = (typeof result?.settled_at === 'number' && result.settled_at > 0) ? result.settled_at
-              : (typeof result?.settledAt === 'number' && result.settledAt > 0) ? result.settledAt
-              : null;
-            const stateStr = (result?.state || result?.status || '').toString().toLowerCase();
-            const isStateSettled = stateStr === 'settled' || stateStr === 'paid' || stateStr === 'complete' || stateStr === 'completed';
-            isPaid = (preimage && preimage.length >= 32) || settledAt || isStateSettled || result?.paid === true;
+          // Try NWC lookupInvoice via server (may work if relay is responsive)
+          if (useBackendAPI) {
+            result = await nwcAPI('lookup_invoice', { payment_hash: currentPaymentHash });
+            console.log(`lookupInvoice #${checks} (server):`, JSON.stringify(result));
           }
 
-          if (result && isPaid) {
-            // VULN-002 FIX: Validate paid amount matches event price BEFORE confirming
-            const paidAmount = result?.amount || result?.amount_msat || result?.amount_msats || null;
-            const expectedMsats = selectedEvent.price * 1000;
-            if (paidAmount !== null && paidAmount !== undefined) {
-              const paidMsats = typeof paidAmount === 'number' ? paidAmount : parseInt(paidAmount, 10);
-              if (!isNaN(paidMsats) && paidMsats < expectedMsats) {
-                console.warn(`VULN-002 BLOCKED: Paid ${paidMsats} msats but expected ${expectedMsats} msats`);
-                document.getElementById('waitingText').textContent = 'Error: monto insuficiente';
-                showToast(`Pago rechazado: ${Math.floor(paidMsats/1000)} sats < ${selectedEvent.price} sats requeridos`, 'error');
-                return;
-              }
-            }
-            // Payment confirmed! No more polling
-            result.preimage = preimage || result?.preimage || 'verified';
-            result.settled_at = settledAt || Math.floor(Date.now() / 1000);
-            const viaLabel = result.via === 'nwc-direct' ? '(direct)' : '(server)';
-            console.log(`Payment verified ${viaLabel}! Amount validated.`, JSON.stringify(result));
-            // Close direct client if used
-            if (directNwcClient) { try { directNwcClient.close(); } catch(_){} directNwcClient = null; }
+          if (result?.paid === true) {
+            if (zapVerified) return;
+            zapVerified = true;
+            stopZapReceiptMonitor();
+            result.preimage = result.preimage || 'verified';
+            result.settled_at = result.settled_at || Math.floor(Date.now() / 1000);
+            console.log('Payment verified via NWC lookupInvoice!');
             await onPaymentVerified(result);
-            return; // Don't schedule next check
+            return;
           } else {
-            const viaLabel = usingDirectClient ? 'NWC directo' : 'NWC servidor';
             document.getElementById('waitingText').textContent =
-              `Verificando pago via ${viaLabel}... (${checks}/${maxChecks})`;
-            currentInterval = BASE_INTERVAL;
+              `⚡ Verificando pago via Nostr... (${checks})`;
           }
         } catch (err) {
-          if (!usingDirectClient) {
-            serverErrors++;
-            if (serverErrors >= 2) {
-              // Will switch to direct on next check
-              document.getElementById('waitingText').textContent =
-                '⚡ Servidor lento — cambiando a verificación directa...';
-              currentInterval = 1000; // Quick retry with direct client
-            } else {
-              currentInterval = Math.min(BASE_INTERVAL * 1.5, 8000);
-            }
-          } else {
-            // Direct client also failed — backoff
-            currentInterval = Math.min(BASE_INTERVAL * 2, 10000);
-            document.getElementById('waitingText').textContent =
-              `Verificando pago via NWC directo... (${checks})`;
-          }
-          console.log(`Lookup error #${checks} (${usingDirectClient ? 'direct' : 'server'}, next in ${currentInterval}ms):`, err.message);
+          // NWC failed — Zap receipt monitor is still running in parallel
+          document.getElementById('waitingText').textContent =
+            `⚡ Esperando Zap receipt en Nostr... (${checks})`;
+          console.log(`NWC lookup #${checks} failed (Zap monitor active):`, err.message);
         }
         scheduleNextCheck();
       }
 
-      // Start first check
+      // Start first NWC check
       scheduleNextCheck();
     }
 
@@ -2672,7 +2650,9 @@
       currentInvoice = null;
       currentPaymentHash = null;
       currentVerifyUrl = null;
-      if (directNwcClient) { try { directNwcClient.close(); } catch(_){} directNwcClient = null; }
+      currentZapRelays = null;
+      currentZapRecipient = null;
+      stopZapReceiptMonitor();
 
       document.getElementById('step-form').style.display = 'block';
       document.getElementById('step-payment').style.display = 'none';

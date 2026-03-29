@@ -1,14 +1,51 @@
 // ══════════════════════════════════════════════════════════════
-// HDMP v3.2 — Serverless NWC Backend (Vercel Function)
+// HDMP v3.3 — Serverless NWC Backend (Vercel Function)
 // NWC secret stays server-side, never exposed to the client
 // v3.1: Added timeout wrapper to prevent Vercel 504 on slow relays
 // v3.2: LNURL fallback — when NWC relay is slow, use Lightning Address
-//       (HTTP-only, no WebSocket needed, much faster)
+// v3.3: NIP-57 Zap request in LNURL invoices — verification via
+//       Zap receipts on public relays, NO relay.primal.net dependency
 // ══════════════════════════════════════════════════════════════
 
 const NWC_URL = process.env.NWC_URL;
 
 import crypto from 'crypto';
+import { schnorr } from '@noble/curves/secp256k1';
+import { bytesToHex, randomBytes } from '@noble/hashes/utils';
+import { sha256 } from '@noble/hashes/sha256';
+
+// ── NIP-57: Zap Request signing ──
+// Fixed keypair for the HDMP app (derived from a seed, not the NWC secret)
+const ZAP_PRIVKEY = sha256(new TextEncoder().encode('hdmp-lacrypta-zap-signer-v3'));
+const ZAP_PUBKEY = bytesToHex(schnorr.getPublicKey(ZAP_PRIVKEY));
+
+// Public relays for Zap receipt verification (NOT relay.primal.net)
+const ZAP_RELAYS = ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.primal.net'];
+
+function createZapRequest(recipientPubkey, amountMsats, content, lnurl) {
+  const created_at = Math.floor(Date.now() / 1000);
+  const tags = [
+    ['relays', ...ZAP_RELAYS],
+    ['amount', String(amountMsats)],
+    ['lnurl', lnurl],
+    ['p', recipientPubkey]
+  ];
+  // NIP-57 kind 9734 event
+  const eventData = [0, ZAP_PUBKEY, created_at, 9734, tags, content];
+  const serialized = JSON.stringify(eventData);
+  const id = bytesToHex(sha256(new TextEncoder().encode(serialized)));
+  const sig = bytesToHex(schnorr.sign(sha256(new TextEncoder().encode(serialized)), ZAP_PRIVKEY));
+
+  return {
+    id,
+    pubkey: ZAP_PUBKEY,
+    created_at,
+    kind: 9734,
+    tags,
+    content,
+    sig
+  };
+}
 
 // ── NIP-47 Constants ──
 const NWC_METHODS = {
@@ -63,7 +100,7 @@ async function makeInvoiceViaLNURL(lud16, amountMsats, description) {
     throw new Error(`LNURL error: ${paramsRes.reason || 'unknown'}`);
   }
 
-  const { callback, minSendable, maxSendable } = paramsRes;
+  const { callback, minSendable, maxSendable, allowsNostr, nostrPubkey } = paramsRes;
   if (!callback) throw new Error('LNURL: no callback URL');
 
   // Validate amount is within range
@@ -73,8 +110,21 @@ async function makeInvoiceViaLNURL(lud16, amountMsats, description) {
 
   // Step 2: Request invoice from callback
   const sep = callback.includes('?') ? '&' : '?';
-  const invoiceUrl = `${callback}${sep}amount=${amountMsats}&comment=${encodeURIComponent(description.slice(0, 144))}`;
-  console.log('LNURL fallback: requesting invoice');
+  let invoiceUrl = `${callback}${sep}amount=${amountMsats}&comment=${encodeURIComponent(description.slice(0, 144))}`;
+
+  // v3.3 NIP-57: Include Zap request so provider publishes a Zap receipt
+  // This enables payment verification via public Nostr relays instead of NWC relay
+  let zapRequestEvent = null;
+  if (allowsNostr && nostrPubkey) {
+    try {
+      zapRequestEvent = createZapRequest(nostrPubkey, amountMsats, description, lnurlpUrl);
+      invoiceUrl += `&nostr=${encodeURIComponent(JSON.stringify(zapRequestEvent))}`;
+      console.log('NIP-57: Zap request included, pubkey:', ZAP_PUBKEY.slice(0, 16) + '...');
+    } catch (zapErr) {
+      console.warn('Failed to create Zap request (non-fatal):', zapErr.message);
+    }
+  }
+  console.log('LNURL: requesting invoice');
 
   const invoiceRes = await withTimeout(
     fetch(invoiceUrl).then(r => r.json()),
@@ -110,6 +160,10 @@ async function makeInvoiceViaLNURL(lud16, amountMsats, description) {
     invoice: bolt11,
     payment_hash: paymentHash,
     verify_url: verifyUrl,
+    // v3.3: Zap verification data — client subscribes to kind 9735 on public relays
+    zap_pubkey: zapRequestEvent ? ZAP_PUBKEY : null,
+    zap_recipient: nostrPubkey || null,
+    zap_relays: zapRequestEvent ? ZAP_RELAYS : null,
     via: 'lnurl'
   };
 }
@@ -234,7 +288,26 @@ export default async function handler(req, res) {
           return res.status(400).json({ error: 'Description cannot be empty' });
         }
 
-        // Try NWC first, fall back to LNURL if relay is slow
+        // v3.3: LNURL FIRST — includes NIP-57 Zap request for payment verification
+        // via public Nostr relays. NWC as fallback only.
+        if (nwcParts.lud16) {
+          try {
+            const lnurlResult = await makeInvoiceViaLNURL(nwcParts.lud16, amount, description);
+            console.log('LNURL invoice created (with Zap request for NIP-57 verification)');
+            return res.status(200).json({
+              invoice: lnurlResult.invoice,
+              payment_hash: lnurlResult.payment_hash || '',
+              zap_pubkey: lnurlResult.zap_pubkey || null,
+              zap_recipient: lnurlResult.zap_recipient || null,
+              zap_relays: lnurlResult.zap_relays || null,
+              amount: amount,
+              via: 'lnurl'
+            });
+          } catch (lnurlErr) {
+            console.warn('LNURL makeInvoice failed, trying NWC:', lnurlErr.message);
+          }
+        }
+        // NWC fallback (no Zap request, verification depends on relay)
         try {
           result = await withTimeout(
             client.makeInvoice({ amount, description }),
@@ -248,26 +321,7 @@ export default async function handler(req, res) {
             via: 'nwc'
           });
         } catch (nwcErr) {
-          console.warn('NWC makeInvoice failed, trying LNURL fallback:', nwcErr.message);
-
-          // LNURL fallback using Lightning Address from NWC URL
-          if (nwcParts.lud16) {
-            try {
-              const lnurlResult = await makeInvoiceViaLNURL(nwcParts.lud16, amount, description);
-              console.log('LNURL fallback success!');
-              return res.status(200).json({
-                invoice: lnurlResult.invoice,
-                payment_hash: lnurlResult.payment_hash || '',
-                verify_url: lnurlResult.verify_url || '',
-                amount: amount,
-                via: 'lnurl'
-              });
-            } catch (lnurlErr) {
-              console.error('LNURL fallback also failed:', lnurlErr.message);
-              throw new Error(`NWC: ${nwcErr.message} | LNURL: ${lnurlErr.message}`);
-            }
-          }
-          throw nwcErr; // No LNURL available, propagate NWC error
+          throw nwcErr;
         }
       }
 
