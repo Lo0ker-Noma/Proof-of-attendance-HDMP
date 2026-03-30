@@ -1,6 +1,6 @@
-# ⚡ Proof of Attendance (HDMP) — v3.2
+# ⚡ Proof of Attendance (HDMP) — v3.3
 
-> Sistema de **reservas con pagos Lightning reales**, **Zaps publicados en relays Nostr**, **verificación de tickets por staff con QR scanner** y **página de verificación pública** para eventos presenciales. Usa Nostr Wallet Connect (NIP-47) + LNURL fallback, Zaps (NIP-57), backend serverless en Vercel, firmas HMAC-SHA256, 4 rondas de pentesting y publicación real en relays Nostr.
+> Sistema de **reservas con pagos Lightning reales**, **verificación automática dual (NIP-57 Zap receipts + NWC)**, **Zaps publicados en relays Nostr**, **verificación de tickets por staff con QR scanner + lista de asistentes**, y **página de verificación pública** para eventos presenciales. Usa Nostr Wallet Connect (NIP-47) + LNURL-first strategy, Zaps (NIP-57), NIP-57 Zap receipt verification en relays públicos, backend serverless en Vercel, firmas HMAC-SHA256/Schnorr, 4 rondas de pentesting y publicación real en relays Nostr.
 
 **Construido para la Lightning Hackathon FOUNDATIONS 2026 de La Crypta.**
 
@@ -96,7 +96,7 @@ v3.1 — Lo nuevo:
 ✅ Ticket muestra status de publicación en relays post-pago
 ```
 
-### v3.2 — LNURL Fallback + Resiliencia de pagos (semana 4, actual)
+### v3.2 — LNURL Fallback + Resiliencia de pagos (semana 4)
 
 La v3.1 dependía 100% del relay NWC de Primal para crear invoices y verificar pagos. Cuando el relay no responde (si la app Primal no está abierta), toda la app se caía. La v3.2 resuelve esto con un sistema de fallback multi-protocolo:
 
@@ -113,19 +113,46 @@ v3.2 — Lo nuevo:
 ✅ Cleanup WebSocket: cierra conexiones en finally block (previene memory leaks)
 ```
 
+### v3.3 — NIP-57 Zap Receipt Verification + Staff Attendee List (semana 5, actual)
+
+El problema más crítico de v3.2: la verificación de pagos dependía del relay NWC de Primal (`relay.primal.net`), que solo procesa comandos cuando la app Primal está abierta. Esto causaba que el polling de `lookupInvoice` girara indefinidamente — "Relay lento... verificando cada 15s... (95)". El pago llegaba a la wallet pero la app no lo detectaba.
+
+**Solución: verificación dual NIP-57 Zap receipts + NWC polling**
+
+El servidor ahora genera una **Zap request firmada (kind 9734)** con Schnorr signatures (BIP-340) y la incluye en el callback LNURL como parámetro `nostr`. Cuando la wallet procesa el pago, publica automáticamente un **Zap receipt (kind 9735)** en relays públicos. El cliente se suscribe a estos relays via WebSocket y detecta el pago al instante — sin depender del relay NWC.
+
+```
+v3.3 — Lo nuevo:
+
+✅ NIP-57 Zap receipt verification: verificación de pagos via kind 9735 en relays públicos
+✅ Firmas Schnorr (BIP-340): Zap requests firmadas server-side con @noble/curves/secp256k1
+✅ LNURL-first strategy: genera invoices via LNURL primero (incluye Zap request), NWC como fallback
+✅ Verificación dual paralela: Zap receipt monitor (WebSocket) + NWC lookupInvoice (polling)
+✅ Independiente del relay NWC: funciona aunque relay.primal.net esté caído o la app cerrada
+✅ Staff Attendee List: lista de asistentes con búsqueda en tiempo real en panel Staff
+✅ Banner de pago verificado: scroll-margin-top para visibilidad correcta con sticky header
+✅ Pruebas completas: pagos, verificación, QR, staff scanner, buscador, entrada, consumición — TODO OK
+```
+
 El flujo ahora es:
 
 ```
-Generar Invoice:
-  1. Intenta NWC (relay) — timeout 5s
-  2. Si falla → LNURL-pay (HTTP) — timeout 4s
-  3. Si falla → Retry (hasta 3 veces)
-  4. Siempre devuelve JSON al cliente
+Generar Invoice (LNURL FIRST):
+  1. Intenta LNURL-pay (HTTP) — incluye Zap request firmada (kind 9734) en parámetro nostr
+  2. Si falla → NWC (relay) como fallback
+  3. Siempre devuelve JSON con zap_relays, zap_recipient, zap_pubkey
 
-Verificar Pago:
-  1. Polling NWC con backoff progresivo (5s → 8s → 15s)
-  2. Manejo graceful de errores sin crashear la UI
-  3. Mensaje "Relay lento" al usuario
+Verificar Pago (DUAL — en paralelo):
+  Canal 1: Zap Receipt Monitor (browser WebSocket)
+    → Se suscribe a kind 9735 en relay.damus.io, nos.lol, relay.primal.net
+    → Filtra por #p (recipient pubkey) + match bolt11 o payment_hash
+    → Detección instantánea al recibir el Zap receipt
+
+  Canal 2: NWC lookupInvoice (server polling) — fallback
+    → Polling con backoff 4s → 8s → 15s
+    → Funciona si el relay NWC responde
+
+  → El primero que confirma gana → UI muestra "Pago verificado via Zap (NIP-57)" o "via NWC"
 ```
 
 ---
@@ -135,30 +162,34 @@ Verificar Pago:
 Un sistema de reservas para eventos donde:
 
 1. La **wallet del organizador** (La Crypta) se conecta automáticamente via backend NWC
-2. El **asistente** reserva → paga escaneando un QR con su wallet → el pago se verifica automáticamente via NWC → se firma el ticket server-side → se publican los Zaps en 3 relays Nostr
+2. El **asistente** reserva → paga escaneando un QR con su wallet → el pago se verifica automáticamente via NIP-57 Zap receipt o NWC → se firma el ticket server-side → se publican los Zaps en 3 relays Nostr
 3. El asistente recibe un **ticket con QR** + un **link de verificación pública** que cualquiera puede abrir
 4. Al llegar al evento, muestra su QR → el **staff** lo escanea con el scanner integrado
 5. El staff valida la **entrada** (puerta) y la **consumición** (barra) por separado
 6. Todo es **verificable públicamente**: los Zaps se pueden buscar en njump.me o nostr.band
 
 ```
-Flujo completo v3.2:
+Flujo completo v3.3:
 
 Asistente paga sats
         ↓
-NWC genera invoice (relay) ──timeout──→ LNURL fallback (HTTP)
+LNURL genera invoice (HTTP) + Zap request firmada (kind 9734 con Schnorr)
+  └── NWC fallback si LNURL falla
         ↓
-NWC verifica pago (preimage + settled_at) — con backoff progresivo
+Verificación DUAL en paralelo:
+  ├── Zap Receipt Monitor (browser WebSocket → relays públicos) ← INSTANTÁNEO
+  └── NWC lookupInvoice (server polling) ← fallback
         ↓
 Server firma ticket con HMAC-SHA256
         ↓
 Zap Request (kind 9734) + Zap Receipt (kind 9735)
         ↓
-Publicados en relay.damus.io + nos.lol + relay.nostr.band
+Publicados en relay.damus.io + nos.lol + relay.primal.net
         ↓
 Ticket con QR (datos + firma) + link verificación pública
         ↓
 Staff escanea QR → Server verifica firma → ✅ Entrada + 🍺 Consumición
+  └── Staff puede buscar asistentes por nombre/código en la lista
         ↓
 Cualquiera puede verificar: njump.me/{zapReceiptId}
 ```
@@ -172,7 +203,7 @@ Cualquiera puede verificar: njump.me/{zapReceiptId}
 2. Elegí un evento → tocá "Reservar mi plaza"
 3. Completá tu nombre y npub → "Generar Invoice"
 4. Escaneá el QR con tu wallet (WoS, Phoenix, Primal, Zeus, etc.)
-5. El pago se verifica automáticamente (preimage + settled_at)
+5. El pago se verifica automáticamente via Zap receipt (NIP-57) o NWC (preimage + settled_at)
 6. Los Zaps se publican en 3 relays Nostr (verificable públicamente)
 7. El ticket se firma server-side (HMAC-SHA256) → imposible de falsificar
 8. Recibís tu ticket con QR + link de verificación pública
@@ -302,6 +333,7 @@ Se registra en hdmp_staff_validations (localStorage del staff)
 | **Doble validación bloqueada** | No se puede validar dos veces lo mismo |
 | **Log de actividad** | Historial en tiempo real de todas las validaciones |
 | **Contadores** | Entradas, consumiciones y total en tiempo real |
+| **Lista de asistentes** | Búsqueda en tiempo real por nombre o código HDMP |
 | **Logout** | Cierra sesión y limpia el scanner |
 
 ### QR v3 — Self-contained
@@ -339,28 +371,33 @@ El corazón de los pagos. NWC reemplaza la Lightning Address como backend:
 
 La wallet del organizador (La Crypta / Primal) se conecta automáticamente al cargar la app. Compatible con **Primal**, **Alby**, **Mutiny** y cualquier wallet NIP-47. Normalización robusta de respuestas: `paymentRequest`/`payment_request`/`invoice`/`bolt11`, `preimage`/`payment_preimage`, `settled_at`/`settledAt`/`state`/`status`.
 
-### LNURL-pay — Fallback HTTP (v3.2)
+### LNURL-pay — Primary (LNURL-first, v3.3)
 
-Cuando el relay NWC no responde (frecuente con Primal si la app no está abierta), el backend cae automáticamente a **LNURL-pay** usando la Lightning Address del NWC URL (`lud16`). El flujo LNURL es 100% HTTP (sin WebSocket), mucho más rápido y confiable:
+LNURL es ahora el **método principal** para generar invoices (no un fallback). Esto garantiza que cada invoice incluya una **Zap request firmada (kind 9734)** en el parámetro `nostr` del callback, habilitando la verificación de pago via Zap receipts en relays públicos. NWC queda como fallback si LNURL falla:
 
 - **Resolve Lightning Address** — `user@domain` → `https://domain/.well-known/lnurlp/user`
-- **Fetch callback URL** — Obtiene `callback`, `minSendable`, `maxSendable`
-- **Request invoice** — Llama al callback con `amount` y `comment`
+- **Fetch callback URL** — Obtiene `callback`, `minSendable`, `maxSendable`, `allowsNostr`, `nostrPubkey`
+- **Create Zap request** — Si `allowsNostr: true`, crea kind 9734 firmado con Schnorr (BIP-340)
+- **Request invoice** — Llama al callback con `amount`, `comment` y `nostr` (Zap request JSON)
 - **Decode payment_hash** — Extrae el payment hash del bolt11 con decoder bech32 custom
-- **No requiere relay** — Funciona aunque el relay NWC esté caído
+- **Return Zap metadata** — `zap_pubkey`, `zap_recipient`, `zap_relays` para que el cliente monitoree
 
-### NIP-57 — Zaps (publicados en relays reales)
+### NIP-57 — Zaps (publicados en relays reales + verificación de pagos)
 
-Cada pago genera y **publica** dos eventos Nostr en `relay.damus.io`, `nos.lol` y `relay.nostr.band`:
+NIP-57 cumple **dos funciones** en v3.3:
 
-- **Kind 9734** (Zap Request) — La solicitud de pago con tags `p` (recipient), `amount` (millisats), `relays`, y el mensaje de la reserva
-- **Kind 9735** (Zap Receipt) — La confirmación del pago con el `bolt11` invoice y `preimage`
+**1. Registro público**: Cada pago genera y publica dos eventos Nostr en `relay.damus.io`, `nos.lol` y `relay.primal.net`:
+
+- **Kind 9734** (Zap Request) — Firmado server-side con Schnorr (BIP-340). Incluye tags `p` (recipient), `amount` (millisats), `relays`, `lnurl` y el mensaje de la reserva
+- **Kind 9735** (Zap Receipt) — Publicado automáticamente por la wallet al procesar el pago. Contiene `bolt11`, `preimage` y `description` (el kind 9734 original)
+
+**2. Verificación automática de pagos (v3.3)**: El cliente se suscribe a kind 9735 en relays públicos via WebSocket. Cuando la wallet publica el Zap receipt, el cliente lo detecta al instante comparando el `bolt11` tag o el `payment_hash` en la description. Esto funciona **sin depender del relay NWC** — resuelve el problema de que Primal solo procesa comandos NWC cuando la app está abierta.
 
 Esto crea un **registro verificable e inmutable** de cada pago en el protocolo Nostr. Cualquiera puede verificar en njump.me o nostr.band.
 
 ---
 
-## Arquitectura v3.2
+## Arquitectura v3.3
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -370,38 +407,41 @@ Esto crea un **registro verificable e inmutable** de cada pago en el protocolo N
 │  │ Evento │ │ Pago │ │ Ticket │ │ Staff │ │ Verify │       │
 │  │  view  │ │ view │ │  view  │ │ view  │ │  view  │       │
 │  └────────┘ └──────┘ └────────┘ └───────┘ └────────┘       │
-│       │          │         │         │          │           │
-│       └──────────┴─────────┴─────────┴──────────┘           │
-│                            │                                │
-└────────────────────────────┼────────────────────────────────┘
-                             │ HTTPS
-┌────────────────────────────┼────────────────────────────────┐
-│  BACKEND (Vercel Serverless Functions)                       │
-│                                                             │
-│  ┌──────────────┐  ┌──────────────┐  ┌───────────────┐      │
-│  │ /api/nwc     │  │ /api/verify  │  │ /api/staff    │      │
-│  │ NWC + LNURL  │  │ -ticket      │  │ -verify       │      │
-│  │ make_invoice │  │ sign (HMAC)  │  │ verify PIN    │      │
-│  │ lookup_inv   │  │ verify sig   │  │ validate tix  │      │
-│  │ get_balance  │  │              │  │ rate limiting  │      │
-│  │ get_info     │  │              │  │ timingSafeEq   │      │
-│  │ bolt11 decode│  │              │  │               │      │
-│  └──────┬───────┘  └──────────────┘  └───────────────┘      │
-│         │                                                   │
+│       │          │         │     │   │          │           │
+│       └──────────┴─────────┴─────┴───┴──────────┘           │
+│                            │         │                      │
+│                    HTTPS   │    WebSocket (NIP-57)           │
+│                            │    Zap Receipt Monitor          │
+│                            │    (kind 9735 on public relays) │
+└────────────────────────────┼─────────┼──────────────────────┘
+                             │         │
+┌────────────────────────────┼─────────┼──────────────────────┐
+│  BACKEND (Vercel Serverless Functions) │                     │
+│                                       │                     │
+│  ┌──────────────┐  ┌──────────────┐   │  ┌───────────────┐  │
+│  │ /api/nwc     │  │ /api/verify  │   │  │ /api/staff    │  │
+│  │ LNURL-first  │  │ -ticket      │   │  │ -verify       │  │
+│  │ + NWC fallbk │  │ sign (HMAC)  │   │  │ verify PIN    │  │
+│  │ Schnorr sign │  │ verify sig   │   │  │ validate tix  │  │
+│  │ Zap request  │  │              │   │  │ rate limiting  │  │
+│  │ (kind 9734)  │  │              │   │  │ attendee list │  │
+│  │ bolt11 decode│  │              │   │  │ timingSafeEq   │  │
+│  └──────┬───────┘  └──────────────┘   │  └───────────────┘  │
+│         │                             │                     │
 │  env: NWC_URL, TICKET_SECRET, STAFF_PIN                     │
-└─────────┼───────────────────────────────────────────────────┘
-          │ WSS (NIP-47) + HTTPS (LNURL fallback)
-┌─────────┴───────────────────────────────────────────────────┐
-│  NWC RELAY (wss://relay.primal.net)    ← NWC payments       │
-│  LNURL (primal.net/lnurlp/*)          ← HTTP fallback       │
-│  PUBLISH RELAYS:                       ← Zap events         │
-│    wss://relay.damus.io                                     │
-│    wss://nos.lol                                            │
-│    wss://relay.nostr.band                                   │
+└─────────┼─────────────────────────────┼─────────────────────┘
+          │ HTTPS (LNURL-first) + WSS (NWC fallback)
+┌─────────┴─────────────────────────────┴─────────────────────┐
+│  LNURL (primal.net/lnurlp/*)          ← Invoice + Zap req   │
+│  NWC RELAY (wss://relay.primal.net)    ← NWC fallback        │
+│  PUBLIC RELAYS (Zap verification + publishing):              │
+│    wss://relay.damus.io               ← kind 9735 monitor   │
+│    wss://nos.lol                      ← kind 9735 monitor   │
+│    wss://relay.primal.net             ← kind 9735 monitor   │
 │                                                             │
 │  ┌──────────────────────────────────────────────┐           │
 │  │  Primal Wallet (La Crypta)                   │           │
-│  │  Recibe pagos Lightning via NWC              │           │
+│  │  Recibe pagos Lightning + publica Zap receipt │           │
 │  └──────────────────────────────────────────────┘           │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -434,11 +474,11 @@ Esto crea un **registro verificable e inmutable** de cada pago en el protocolo N
 ### Flujo de datos cross-device
 
 ```
-Comprador paga → NWC verifica → Server firma ticket (HMAC) → Zaps publicados en Nostr
+Comprador paga → Zap receipt (NIP-57) o NWC verifica → Server firma ticket (HMAC)
                                          ↓                           ↓
-                                   QR con datos + firma    Verificable en njump.me
+                                   QR con datos + firma    Zaps verificables en njump.me
                                          ↓
-                     Staff escanea QR → /api/staff-verify → Server re-calcula HMAC
+                     Staff escanea QR o busca en lista → /api/staff-verify → Server re-calcula HMAC
                                                                     ↓
                                                            ¿Firma coincide? → ✅ / ❌
 ```
@@ -452,7 +492,7 @@ Comprador paga → NWC verifica → Server firma ticket (HMAC) → Zaps publicad
 | 1 | **Evento** | Selección multi-evento, status de wallet, precio dinámico sats+USD, badges NIP-47/NIP-57 |
 | 2 | **Pago** | Invoice NWC, QR code, verificación automática con polling 5s, publicación Zaps en relays |
 | 3 | **Ticket** | QR v3 self-contained + payment hash + preimage + Zap event ID + links Nostr + link verificación pública |
-| 4 | **🔑 Staff** | PIN server-side → escáner QR → validar entrada/consumición → log de actividad + contadores |
+| 4 | **🔑 Staff** | PIN server-side → escáner QR → lista asistentes con búsqueda → validar entrada/consumición → log + contadores |
 | 5 | **🔍 Verificación** | Página pública #verify/CODE: payment hash, preimage, firma, Zap links, estado canjeo |
 | 6 | **Auditoría** | Log de pagos, filtros, stats, export CSV, integrity check (accesible via `#audit`) |
 | 7 | **Organizador** | Balance wallet, canjear tickets, reconfigurar NWC (accesible via `#organizer`) |
@@ -466,16 +506,16 @@ Se corrieron **4 rondas de pentesting** (3 automatizadas + 1 manual post-staff) 
 ### Evolución de seguridad
 
 ```
-              v2.1          v2.2           v2.3           v3.0           v3.0.1 (actual)
-              (antes)       (pentest 1)    (pentest 2)    (staff added)  (pentest 4)
-              ──────        ───────────    ───────────    ───────────    ───────────────
-Tests:        22            22             26             48             48+
-Bloqueados:   5  (23%)      13  (59%)      22  (85%)      44  (92%)      48  (98%)
-Vulns:        17            9              4              7              2
-  CRITICAL:   5             3              1              3 (+staff)     0 ✅
-  HIGH:       6             5              0              4 (+staff)     0 ✅
-  MEDIUM:     3             1              2              0              1
-  LOW:        3             0              1              0              1
+              v2.1          v2.2           v2.3           v3.0           v3.0.1         v3.3 (actual)
+              (antes)       (pentest 1)    (pentest 2)    (staff added)  (pentest 4)    (final)
+              ──────        ───────────    ───────────    ───────────    ───────────    ───────────
+Tests:        22            22             26             48             48+            48+
+Bloqueados:   5  (23%)      13  (59%)      22  (85%)      44  (92%)      48  (98%)      48  (98%)
+Vulns:        17            9              4              7              2              2
+  CRITICAL:   5             3              1              3 (+staff)     0 ✅           0 ✅
+  HIGH:       6             5              0              4 (+staff)     0 ✅           0 ✅
+  MEDIUM:     3             1              2              0              1              1
+  LOW:        3             0              1              0              1              1
 ```
 
 ### Timeline de fixes
@@ -537,6 +577,19 @@ Vulns:        17            9              4              7              2
 26 advanced pentest v3 — 22 blocked, 4 remaining (architectural)
 ─────────────────────────────────────────
 104 total test scenarios
+
+Pruebas funcionales completas (v3.3) — TODAS PASANDO ✅:
+  ✅ Pagos Lightning reales (LNURL-first + NWC fallback)
+  ✅ Verificación automática de pagos (NIP-57 Zap receipt + NWC dual)
+  ✅ Generación y escaneo de QR codes (staff scanner)
+  ✅ Staff attendee list con búsqueda en tiempo real
+  ✅ Validación de entrada (puerta)
+  ✅ Validación de consumición (barra)
+  ✅ Verificación de tickets por QR
+  ✅ Verificación de tickets por buscador
+  ✅ Publicación de Zaps en relays Nostr
+  ✅ Verificación pública de tickets
+  ✅ Banner de pago verificado visible correctamente
 ```
 
 ```bash
@@ -586,10 +639,11 @@ vercel --prod
 | Herramienta | Uso |
 |---|---|
 | **Vite** | Build tool y dev server |
-| **@getalby/sdk@3.5.1** | NWC client (NIP-47) — invoices, verificación, balance + LNURL-pay fallback |
+| **@getalby/sdk@3.5.1** | NWC client (NIP-47) — invoices, verificación, balance |
 | **nostr-tools@2.7.0** | Creación, firma y **publicación** de eventos Nostr (NIP-57 Zaps) |
 | **nostr-tools/pool** | `SimplePool` para publicar en múltiples relays simultáneamente |
-| **@noble/hashes** | Utilidades criptográficas (client-side) |
+| **@noble/curves/secp256k1** | Firmas Schnorr (BIP-340) para Zap requests server-side |
+| **@noble/hashes** | SHA-256, utilidades criptográficas (client-side + server-side) |
 | **Web Crypto API** | AES-256-GCM non-extractable key + CSPRNG (`getRandomValues`) |
 | **Node crypto** | HMAC-SHA256 + timingSafeEqual (backend) |
 | **html5-qrcode** | Escáner QR para staff (dynamic import desde esm.sh) |
@@ -604,7 +658,7 @@ vercel --prod
 ```
 ├── index.html                    # App completa (single-file, ~3200 líneas)
 ├── api/
-│   ├── nwc.js                    # Backend NWC proxy (make_invoice, lookup, balance, info)
+│   ├── nwc.js                    # Backend LNURL-first + NWC proxy (Schnorr Zap signing, make_invoice, lookup, balance)
 │   ├── verify-ticket.js          # Firma y verificación HMAC-SHA256 de tickets
 │   └── staff-verify.js           # PIN verification + ticket validation + rate limiting
 ├── vercel.json                   # Config de Vercel (functions, CORS headers)
@@ -630,6 +684,9 @@ vercel --prod
 - [x] ~~Publicar Zaps en relays Nostr reales~~ ✅ Implementado v3.1
 - [x] ~~LNURL fallback para resiliencia~~ ✅ Implementado v3.2
 - [x] ~~Manejo de relay lento / caído~~ ✅ Implementado v3.2
+- [x] ~~NIP-57 Zap receipt verification~~ ✅ Implementado v3.3 — verificación sin depender del relay NWC
+- [x] ~~Staff attendee list con búsqueda~~ ✅ Implementado v3.3
+- [x] ~~LNURL-first strategy~~ ✅ Implementado v3.3 — Zap requests incluidas automáticamente
 - [ ] Hash chain para audit log inmutable
 - [ ] SRI (Subresource Integrity) hashes via bundler
 - [ ] NIP-58 Nostr badges como proof-of-attendance nativo

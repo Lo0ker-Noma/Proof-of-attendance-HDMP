@@ -8,7 +8,7 @@
   <meta http-equiv="X-Frame-Options" content="DENY">
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
   <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
-  <title>⚡ Proof of Attendance — HDMP v3.0</title>
+  <title>⚡ Proof of Attendance — HDMP v3.3</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
@@ -1240,7 +1240,7 @@
         </div>
       </div>
 
-      <div id="paymentVerified" style="display:none">
+      <div id="paymentVerified" style="display:none; margin-top:20px; scroll-margin-top:100px; padding-top:8px">
         <div class="success-banner">
           <div class="icon">⚡</div>
           <div>
@@ -1629,7 +1629,7 @@
         dateShort: 'Mar 17',
         time: '16:00hs',
         location: 'Villanueva 1367 — La Crypta, Buenos Aires',
-        price: 1,
+        price: 2100,
         maxCapacity: 24,
         organizerLnAddress: 'tamedpeen07@walletofsatoshi.com',
         organizerPubkey: '0000000000000000000000000000000000000000000000000000000000000000',
@@ -1643,7 +1643,7 @@
         dateShort: 'Mar 24',
         time: '16:00hs',
         location: 'Villanueva 1367 — La Crypta, Buenos Aires',
-        price: 1,
+        price: 2100,
         maxCapacity: 24,
         organizerLnAddress: 'tamedpeen07@walletofsatoshi.com',
         organizerPubkey: '0000000000000000000000000000000000000000000000000000000000000000',
@@ -1657,7 +1657,7 @@
         dateShort: 'Mar 31',
         time: '17:00hs',
         location: 'Villanueva 1367 — La Crypta, Buenos Aires',
-        price: 1,
+        price: 2100,
         maxCapacity: 24,
         organizerLnAddress: 'tamedpeen07@walletofsatoshi.com',
         organizerPubkey: '0000000000000000000000000000000000000000000000000000000000000000',
@@ -1671,7 +1671,7 @@
         dateShort: 'Abr 7',
         time: '17:00hs',
         location: 'Villanueva 1367 — La Crypta, Buenos Aires',
-        price: 1,
+        price: 2100,
         maxCapacity: 24,
         organizerLnAddress: 'tamedpeen07@walletofsatoshi.com',
         organizerPubkey: '0000000000000000000000000000000000000000000000000000000000000000',
@@ -2365,16 +2365,20 @@
       overlay.classList.add('active');
       setTimeout(() => overlay.classList.remove('active'), 2200);
 
-      // Show verification banner
-      document.getElementById('paymentVerified').style.display = 'block';
+      // Show verification banner and scroll it into view (above sticky header)
+      const verifiedEl = document.getElementById('paymentVerified');
+      verifiedEl.style.display = 'block';
       document.getElementById('waitingIndicator').style.display = 'none';
       document.getElementById('cancelPaymentBtn').style.display = 'none';
+      // Delay scroll slightly so DOM updates first, use 'start' to respect scroll-margin-top
+      setTimeout(() => verifiedEl.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
 
+      const viaMethod = paymentResult.via === 'nip57-zap' ? 'Zap (NIP-57)' : 'NWC';
       const preimage = paymentResult.preimage || 'N/A';
       document.getElementById('verifiedDetails').textContent =
-        `Preimage: ${preimage.slice(0,16)}... — Generando Zap receipt y ticket...`;
+        `Preimage: ${preimage.slice(0,16)}... — Generando ticket...`;
 
-      showToast('¡Pago verificado via NWC!', 'success');
+      showToast(`¡Pago verificado via ${viaMethod}!`, 'success');
 
       // Create Zap Request event (NIP-57 kind 9734)
       const zapRequestEvent = createZapRequestEvent();
