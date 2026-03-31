@@ -1,5 +1,77 @@
 # Changelog — HDMP Proof of Attendance
 
+## [3.3.0] — 2026-03-31 — NIP-57 Zap Receipt Verification + Final
+
+### Added
+- **NIP-57 Zap receipt verification**: verificación automática de pagos via kind 9735 en relays públicos (relay.damus.io, nos.lol, relay.primal.net), completamente independiente del relay NWC
+- **Firmas Schnorr (BIP-340)**: Zap requests (kind 9734) firmadas server-side con @noble/curves/secp256k1
+- **LNURL-first strategy**: genera invoices via LNURL primero (incluye Zap request en parámetro `nostr`), NWC como fallback
+- **Verificación dual paralela**: Zap receipt monitor (WebSocket en browser) + NWC lookupInvoice (server polling) — el primero que confirma gana
+- **Staff Attendee List**: lista de todos los asistentes con búsqueda en tiempo real por nombre o código HDMP en panel Staff
+- **Banner de pago verificado**: scroll-margin-top + scrollIntoView con delay para visibilidad correcta con sticky header
+- **Zap metadata en respuesta**: make_invoice devuelve zap_pubkey, zap_recipient, zap_relays para el monitor del cliente
+
+### Fixed
+- **Payment verification stuck forever**: Primal NWC relay solo procesa comandos con app abierta → Zap receipt verification en relays públicos resuelve esto
+- **Green banner hidden behind sticky header**: agregado scroll-margin-top: 100px y scrollIntoView({ block: 'start' }) con 150ms delay
+
+### Changed
+- Ticket prices restaurados a 2100 sats (producción)
+- Title actualizado a HDMP v3.3
+- make_invoice intenta LNURL antes que NWC (era al revés)
+- Zap receipt monitor se limpia correctamente en cancelPayment
+
+### Testing
+- **Todas las pruebas funcionales completadas con éxito**:
+  - Pagos Lightning reales (LNURL-first + NWC fallback)
+  - Verificación automática de pagos (NIP-57 Zap receipt + NWC dual)
+  - Generación y escaneo de QR codes (staff scanner)
+  - Staff attendee list con búsqueda en tiempo real
+  - Validación de entrada (puerta) y consumición (barra)
+  - Verificación de tickets por QR y por buscador
+  - Publicación de Zaps en relays Nostr
+  - Verificación pública de tickets
+
+---
+
+## [3.2.0] — 2026-03-28 — LNURL Fallback + Payment Resilience
+
+### Added
+- **LNURL-pay fallback**: cuando el relay NWC falla, genera invoices via Lightning Address (HTTP puro)
+- **Decodificación bolt11**: extrae payment_hash del invoice con decoder bech32 custom, sin depender del relay
+- **Timeout server-side**: NWC 5s + LNURL 4s = siempre responde antes del límite de Vercel (10s)
+- **Retry automático**: hasta 3 intentos con mensajes "Relay lento — reintentando"
+- **Backoff progresivo**: verificación de pago 5s → 8s → 15s cuando el relay está lento
+- **get_info resiliente**: devuelve "connected" cuando LNURL está disponible
+- **Cleanup WebSocket**: cierra conexiones en finally block (previene memory leaks)
+
+---
+
+## [3.1.0] — 2026-03-27 — Zaps en Relays Reales + Verificación Pública
+
+### Added
+- **Zaps publicados en relays Nostr REALES**: relay.damus.io, nos.lol, relay.nostr.band
+- **SimplePool** de nostr-tools para publicación multi-relay
+- **Página de verificación pública**: `#verify/HDMP-XXXXXXXX`
+- **Links a njump.me y nostr.band** para verificar Zaps on-chain
+- **hashchange listener** para navegación dinámica de verify links
+- **Ticket muestra status de publicación** en relays post-pago
+
+---
+
+## [3.0.1] — 2026-03-25 — Pentest Ronda 4
+
+### Security Fixes (3 CRITICAL + 4 HIGH)
+- **XSS via paymentHash en onclick** → reemplazado con event delegation + data attributes
+- **Staff PIN sin rate limiting** → 5 intentos / 15 min con bloqueo por IP
+- **PIN fallback client-side '1234'** → eliminado, fail closed (solo server-side)
+- **PIN comparison no timing-safe** → crypto.timingSafeEqual con buffer padding
+- **Tickets sin firma aceptados por staff** → rechazados, solo server-signed
+- **Invoice description sin sanitizar** → max 500 chars, strip control chars
+- **Error messages revelando info del backend** → mensajes genéricos
+
+---
+
 ## [3.0.0] — 2026-03-24 — Jury Feedback Implementation
 
 ### Security Fixes
