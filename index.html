@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
   <!-- Security Headers (v2.3) -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://esm.sh; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://esm.sh wss://* https://*; img-src 'self' data: blob: https://avatars.githubusercontent.com; media-src 'self' blob: mediastream:; frame-ancestors 'none';">
   <meta http-equiv="X-Frame-Options" content="DENY">
@@ -832,15 +832,96 @@
     .event-list-card:hover .elc-arrow { transform: translateX(3px); }
     .event-list-card.selected .elc-arrow { color: var(--gold); }
 
+    /* ── RESPONSIVE: TABLETS ── */
+    @media (max-width: 768px) {
+      .view { padding: 24px 16px; max-width: 100%; }
+      header { padding: 12px 16px; }
+    }
+
+    /* ── RESPONSIVE: MOBILE (iPhone, etc) ── */
     @media (max-width: 480px) {
-      .view { padding: 20px 16px; }
-      .event-title { font-size: 1.4rem; }
-      .header-links { gap: 4px; }
-      .header-link { padding: 6px 8px; font-size: 0.72rem; }
+      .view { padding: 16px 12px; max-width: 100%; }
+      header { padding: 10px 12px; gap: 6px; flex-wrap: wrap; }
+      .logo { font-size: 0.9rem; gap: 6px; }
+      .logo .version { font-size: 0.55rem; }
+      .header-links { gap: 3px; }
+      .header-link { padding: 5px 8px; font-size: 0.7rem; }
+      .nwc-status { font-size: 0.65rem; padding: 4px 8px; }
+      .nwc-dot { width: 6px; height: 6px; }
+
+      /* Event view */
+      .event-title { font-size: 1.3rem; }
+      .price-box { padding: 14px; }
+      .price-amount { font-size: 1.3rem; }
+      .price-label { font-size: 0.8rem; }
+
+      /* Event list cards */
+      .event-list-card { padding: 10px 12px; }
+      .event-list-card .elc-date { font-size: 0.62rem; min-width: 46px; padding: 3px 6px; }
+      .event-list-card .elc-name { font-size: 0.82rem; }
+      .event-list-card .elc-price { font-size: 0.75rem; }
+
+      /* Payment view */
+      .payment-amount-big { font-size: 1.2rem; }
+
+      /* QR Scanner mobile optimization */
+      #staffQrReader { min-height: 220px; max-height: 300px; }
+      #staffQrReader video { width: 100% !important; height: auto !important; object-fit: cover; }
+
+      /* Staff view */
+      .staff-pin-title { font-size: 1.4rem; }
+      .pin-input-row { gap: 10px; }
+      .pin-digit { width: 48px; height: 52px; font-size: 1.4rem; }
+      .scanner-header { flex-direction: column; gap: 8px; align-items: flex-start; }
+      .scanner-badge { font-size: 0.7rem; }
+      .staff-stats-row { gap: 6px; }
+      .staff-stat-num { font-size: 1.1rem; }
+      .staff-stat-label { font-size: 0.65rem; }
+      .staff-log { padding: 12px; }
+      .staff-log-title { font-size: 0.85rem; }
+
+      /* Audit view */
       .audit-table-header, .audit-row { grid-template-columns: 1fr 70px 80px 50px; font-size: 0.72rem; }
-      .stats-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+      .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
       .stat-card { padding: 14px 8px; }
       .stat-num { font-size: 1.5rem; }
+
+      /* Ticket view */
+      .card { padding: 16px; }
+
+      /* Buttons */
+      .btn { padding: 12px 18px; font-size: 0.85rem; }
+      .btn-primary { padding: 14px 20px; }
+
+      /* Toast */
+      .toast { font-size: 0.82rem; padding: 10px 14px; max-width: calc(100vw - 32px); }
+
+      /* Forms */
+      input[type="text"], input[type="email"], textarea, select {
+        font-size: 16px !important; /* Prevent iOS zoom on input focus */
+      }
+    }
+
+    /* ── RESPONSIVE: SMALL PHONES (iPhone SE, etc) ── */
+    @media (max-width: 375px) {
+      .view { padding: 12px 10px; }
+      header { padding: 8px 10px; }
+      .logo { font-size: 0.82rem; }
+      .logo .version { display: none; }
+      .header-link { padding: 4px 6px; font-size: 0.65rem; }
+      .event-title { font-size: 1.15rem; }
+      .price-amount { font-size: 1.15rem; }
+      .pin-digit { width: 42px; height: 46px; font-size: 1.2rem; }
+      .staff-pin-title { font-size: 1.2rem; }
+      #staffQrReader { min-height: 200px; }
+      .stats-grid { grid-template-columns: 1fr 1fr; }
+    }
+
+    /* ── iOS SAFE AREA (notch, home indicator) ── */
+    @supports (padding: env(safe-area-inset-top)) {
+      header { padding-top: max(10px, env(safe-area-inset-top)); padding-left: max(12px, env(safe-area-inset-left)); padding-right: max(12px, env(safe-area-inset-right)); }
+      .view { padding-bottom: max(20px, env(safe-area-inset-bottom)); }
+      body { padding-bottom: env(safe-area-inset-bottom); }
     }
 
     /* ── STAFF VIEW ── */
@@ -930,10 +1011,17 @@
       border: 2px solid rgba(255,255,255,0.1);
       background: #000;
       min-height: 280px;
+      position: relative;
     }
     #staffQrReader video {
       border-radius: var(--radius-md);
+      width: 100% !important;
+      height: auto !important;
+      object-fit: cover;
     }
+    /* Prevent html5-qrcode from creating oversized elements */
+    #staffQrReader > div { max-width: 100% !important; }
+    #staffQrReader img[alt="Info icon"] { display: none !important; } /* Hide html5-qrcode branding */
     .scan-result {
       display: none;
       padding: 20px;
@@ -1070,7 +1158,7 @@
 
   <!-- HEADER -->
   <header>
-    <div class="logo">⚡ <span>HDMP</span> <span class="version">v3.0 · NWC + Zaps</span></div>
+    <div class="logo">⚡ <span>HDMP</span> <span class="version">v3.3 · NWC + Zaps</span></div>
     <div class="header-links">
       <div class="nwc-status" id="nwcStatus">
         <div class="nwc-dot disconnected" id="nwcDot"></div>
@@ -3245,9 +3333,13 @@
       try {
         const { Html5Qrcode } = await import('https://esm.sh/html5-qrcode@2.3.8');
 
+        // v3.3: Prevent duplicate cameras — fully stop and clean previous instance
         if (staffQrScanner) {
           try { await staffQrScanner.stop(); } catch(e) {}
+          staffQrScanner = null;
         }
+        // Clean any leftover video/canvas elements from previous scanner
+        container.innerHTML = '';
 
         staffQrScanner = new Html5Qrcode('staffQrReader');
 
