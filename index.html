@@ -1586,10 +1586,17 @@
         </div>
       </div>
 
-      <!-- v3.2: Lista de Asistentes -->
+      <!-- v3.3: Historial de Eventos + Lista de Asistentes -->
       <div class="staff-log" style="margin-top:24px">
-        <div class="staff-log-title">👥 Lista de Asistentes</div>
-        <div style="padding:8px 0">
+        <div class="staff-log-title">👥 Asistentes por Evento</div>
+
+        <!-- Event Tabs -->
+        <div id="staffEventTabs" style="display:flex;gap:6px;padding:8px 0;overflow-x:auto;-webkit-overflow-scrolling:touch"></div>
+
+        <!-- Event Stats Summary -->
+        <div id="staffEventStats" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:8px 0"></div>
+
+        <div style="padding:4px 0 8px">
           <input type="text" id="staffSearchInput" placeholder="Buscar por nombre o código..."
             style="width:100%;padding:10px 14px;border-radius:var(--radius-sm);border:1px solid var(--border-glass);
             background:var(--bg-glass);color:var(--text);font-size:0.9rem;outline:none;
@@ -3067,21 +3074,111 @@
       document.getElementById('pin1').focus();
     };
 
-    // ── v3.2: LISTA DE ASISTENTES PARA STAFF ──────────────
+    // ── v3.3: HISTORIAL DE EVENTOS + LISTA DE ASISTENTES PARA STAFF ──────────────
+    let staffEventFilter = 'all'; // 'all' or eventId
+
+    window.renderStaffEventTabs = function() {
+      const tabsContainer = document.getElementById('staffEventTabs');
+      if (!tabsContainer) return;
+
+      const reservations = getReservations();
+      // Get unique eventIds that have reservations
+      const eventIds = [...new Set(reservations.map(r => r.eventId).filter(Boolean))];
+
+      // Build tabs: "Todos" + one per event
+      let tabs = `<button onclick="staffSelectEventTab('all')" style="
+        padding:6px 14px;border-radius:20px;border:1px solid ${staffEventFilter === 'all' ? 'var(--gold)' : 'var(--border-glass)'};
+        background:${staffEventFilter === 'all' ? 'rgba(247,147,26,0.15)' : 'var(--bg-glass)'};
+        color:${staffEventFilter === 'all' ? 'var(--gold)' : 'var(--text-muted)'};
+        font-size:0.78rem;font-weight:600;cursor:pointer;white-space:nowrap;
+        font-family:'Inter',sans-serif;transition:all 0.2s">Todos</button>`;
+
+      EVENTS_LIST.forEach(evt => {
+        const evtReservations = reservations.filter(r => r.eventId === evt.id);
+        if (evtReservations.length === 0 && staffEventFilter !== evt.id) return; // Only show events with data
+        const isActive = staffEventFilter === evt.id;
+        const label = evt.dateShort || evt.id;
+        tabs += `<button onclick="staffSelectEventTab('${evt.id}')" style="
+          padding:6px 14px;border-radius:20px;border:1px solid ${isActive ? 'var(--gold)' : 'var(--border-glass)'};
+          background:${isActive ? 'rgba(247,147,26,0.15)' : 'var(--bg-glass)'};
+          color:${isActive ? 'var(--gold)' : 'var(--text-muted)'};
+          font-size:0.78rem;font-weight:600;cursor:pointer;white-space:nowrap;
+          font-family:'Inter',sans-serif;transition:all 0.2s">${label} (${evtReservations.length})</button>`;
+      });
+
+      tabsContainer.innerHTML = tabs;
+    };
+
+    window.renderStaffEventStats = function() {
+      const statsContainer = document.getElementById('staffEventStats');
+      if (!statsContainer) return;
+
+      const reservations = getReservations();
+      const staffValidations = JSON.parse(localStorage.getItem('hdmp_staff_validations') || '[]');
+
+      // Filter by selected event
+      const filtered = staffEventFilter === 'all'
+        ? reservations
+        : reservations.filter(r => r.eventId === staffEventFilter);
+
+      const total = filtered.length;
+      const entradas = filtered.filter(r => {
+        const v = staffValidations.find(sv => sv.paymentHash === r.paymentHash && sv.type === 'entrada');
+        return !!v;
+      }).length;
+      const consumiciones = filtered.filter(r => {
+        const v = staffValidations.find(sv => sv.paymentHash === r.paymentHash && sv.type === 'consumicion');
+        return !!v;
+      }).length;
+
+      const pctEntrada = total > 0 ? Math.round(entradas / total * 100) : 0;
+      const pctConsumo = total > 0 ? Math.round(consumiciones / total * 100) : 0;
+
+      statsContainer.innerHTML = `
+        <div style="background:var(--bg-glass);border:1px solid var(--border-glass);border-radius:var(--radius-sm);padding:10px;text-align:center">
+          <div style="font-size:1.2rem;font-weight:800;color:var(--gold)">${total}</div>
+          <div style="font-size:0.7rem;color:var(--text-dim)">Reservas</div>
+        </div>
+        <div style="background:var(--bg-glass);border:1px solid var(--border-glass);border-radius:var(--radius-sm);padding:10px;text-align:center">
+          <div style="font-size:1.2rem;font-weight:800;color:var(--green)">${entradas}<span style="font-size:0.7rem;font-weight:500;color:var(--text-dim)"> / ${total}</span></div>
+          <div style="font-size:0.7rem;color:var(--text-dim)">Asistieron (${pctEntrada}%)</div>
+        </div>
+        <div style="background:var(--bg-glass);border:1px solid var(--border-glass);border-radius:var(--radius-sm);padding:10px;text-align:center">
+          <div style="font-size:1.2rem;font-weight:800;color:var(--purple)">${consumiciones}<span style="font-size:0.7rem;font-weight:500;color:var(--text-dim)"> / ${total}</span></div>
+          <div style="font-size:0.7rem;color:var(--text-dim)">Canjearon (${pctConsumo}%)</div>
+        </div>`;
+    };
+
+    window.staffSelectEventTab = function(eventId) {
+      staffEventFilter = eventId;
+      renderStaffEventTabs();
+      renderStaffEventStats();
+      renderAttendeeList();
+    };
+
     window.renderAttendeeList = function() {
       const container = document.getElementById('staffAttendeeList');
       if (!container) return;
+
+      // Also refresh tabs and stats
+      renderStaffEventTabs();
+      renderStaffEventStats();
 
       const reservations = getReservations();
       const staffValidations = JSON.parse(localStorage.getItem('hdmp_staff_validations') || '[]');
       const searchTerm = (document.getElementById('staffSearchInput')?.value || '').toLowerCase().trim();
 
+      // Filter by selected event tab
+      let eventFiltered = staffEventFilter === 'all'
+        ? reservations
+        : reservations.filter(r => r.eventId === staffEventFilter);
+
       // Filter by search term
       const filtered = searchTerm
-        ? reservations.filter(r =>
+        ? eventFiltered.filter(r =>
             (r.name || '').toLowerCase().includes(searchTerm) ||
             (r.ticketCode || '').toLowerCase().includes(searchTerm))
-        : reservations;
+        : eventFiltered;
 
       if (filtered.length === 0) {
         container.innerHTML = `<div style="text-align:center;color:var(--text-dim);font-size:0.85rem;padding:20px">
@@ -3095,9 +3192,10 @@
 
       container.innerHTML = sorted.map((r, i) => {
         // Check staff validation status
-        const validation = staffValidations.find(v => v.paymentHash === r.paymentHash);
-        const hasEntrada = validation?.entrada;
-        const hasConsumo = validation?.consumicion;
+        const entradaVal = staffValidations.find(v => v.paymentHash === r.paymentHash && v.type === 'entrada');
+        const consumoVal = staffValidations.find(v => v.paymentHash === r.paymentHash && v.type === 'consumicion');
+        const hasEntrada = !!entradaVal;
+        const hasConsumo = !!consumoVal;
         const entradaBadge = hasEntrada
           ? '<span style="background:#10b981;color:#fff;padding:2px 6px;border-radius:6px;font-size:0.7rem">✅ Entrada</span>'
           : '<span style="background:var(--bg-glass);color:var(--text-dim);padding:2px 6px;border-radius:6px;font-size:0.7rem">⬜ Entrada</span>';
@@ -3107,7 +3205,10 @@
 
         const name = sanitizeInput(r.name || 'Anónimo');
         const code = sanitizeInput(r.ticketCode || '—');
-        const event = sanitizeInput(r.eventId || '');
+        const eventLabel = staffEventFilter === 'all' ? (() => {
+          const ev = EVENTS_LIST.find(e => e.id === r.eventId);
+          return ev ? `<span style="font-size:0.65rem;color:var(--cyan);margin-right:4px">${sanitizeInput(ev.dateShort)}</span>` : '';
+        })() : '';
         const amount = r.amount || '?';
         const date = r.createdAt ? new Date(r.createdAt).toLocaleString('es-AR', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '';
         const hasSig = r.serverSignature ? '🔐' : '⚠️';
@@ -3115,7 +3216,7 @@
         return `<div style="padding:10px 12px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:4px"
           data-attendee-code="${code}">
           <div style="display:flex;justify-content:space-between;align-items:center">
-            <span style="font-weight:600;font-size:0.95rem;color:var(--text)">${hasSig} ${name}</span>
+            <span style="font-weight:600;font-size:0.95rem;color:var(--text)">${hasSig} ${eventLabel}${name}</span>
             <span style="font-family:'JetBrains Mono',monospace;font-size:0.75rem;color:var(--gold)">${code}</span>
           </div>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
